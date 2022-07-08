@@ -8,4 +8,10 @@ import java.io.Closeable
  * @author Ralph Gasser
  * @version 1.0.0
  */
-interface DatasetIterator: Iterator<Pair<Int,FloatArray>>, Closeable
+interface DatasetIterator: Iterator<Pair<Int,FloatArray>>, Closeable {
+    /** The number of entries in the data set iterated by this [DatasetIterator].*/
+    val size: Int
+
+    /** The dimensionality of the vectors. */
+    val dimension: Int
+}

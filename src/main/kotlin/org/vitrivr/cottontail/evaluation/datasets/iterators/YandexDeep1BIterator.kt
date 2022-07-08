@@ -19,10 +19,10 @@ class YandexDeep1BIterator(path: Path): DatasetIterator {
     private val channel: SeekableByteChannel = Files.newByteChannel(workingdir.resolve(path), StandardOpenOption.READ)
 
     /** The number of entries in the file wrapped by this [YandexDeep1BIterator].*/
-    val size: Int
+    override val size: Int
 
     /** The number of entries in the file wrapped by this [YandexDeep1BIterator].*/
-    val dimension: Int
+    override val dimension: Int
 
     /** The current position (in terms of entries) of this [YandexDeep1BIterator].e */
     private var position = 1

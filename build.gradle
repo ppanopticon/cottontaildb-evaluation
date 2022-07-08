@@ -23,6 +23,9 @@ dependencies {
     implementation group: 'io.grpc', name: 'grpc-all', version: '1.47.0'
     implementation group: 'com.google.protobuf', name: 'protobuf-java', version: '3.21.2'
 
+    /* Progress Bar. */
+    implementation group: 'me.tongfei', name: 'progressbar', version: '0.9.3'
+
     /* HDF5 for Java.*/
     implementation group: 'cisd', name: 'jhdf5', version: '14.12.6'
 
