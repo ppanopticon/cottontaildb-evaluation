@@ -7,12 +7,6 @@ import org.vitrivr.cottontail.client.language.basics.Type
 import org.vitrivr.cottontail.client.language.ddl.CreateEntity
 import org.vitrivr.cottontail.client.language.dml.BatchInsert
 import org.vitrivr.cottontail.evaluation.datasets.iterators.YandexDeep1BIterator
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
-import java.nio.file.Files
-
-import java.nio.file.StandardOpenOption
-import java.time.temporal.ChronoUnit
 
 
 /**
@@ -27,23 +21,32 @@ fun prepareDeep1B()  {
 
     /** Load YANDEX Deep 1B dataset. */
     val iterator = YandexDeep1BIterator(workingdir.resolve("datasets/yandex-deep1b/base.1B.fbin"))
-    val bar = ProgressBarBuilder().setInitialMax(iterator.size.toLong()).setUpdateIntervalMillis(500).setStyle(ProgressBarStyle.ASCII).setTaskName("Loading Yandex Deep1B").build()
+    val bar = ProgressBarBuilder().setInitialMax(iterator.size.toLong()).setStyle(ProgressBarStyle.ASCII).setTaskName("Loading (Yandex Deep1B)").build()
     iterator.use {
         bar.use { b ->
-            val txId = client.begin()
+            var txId = client.begin()
             try {
                 var insert = BatchInsert("evaluation.yandex_deep1b").columns("id", "feature").txId(txId)
                 while (it.hasNext()) {
-                    val next = it.next()
-                    if (!insert.append(next.first, next.second)) {
+                    val (id, vector) = it.next()
+                    if (!insert.append(id, vector)) {
                         client.insert(insert)
                         insert = BatchInsert("evaluation.yandex_deep1b").columns("id", "feature").txId(txId)
-                        insert.append(next.first, next.second)
+                        insert.append(id, vector)
+                        b.stepTo(id.toLong())
                     }
-                    b.step()
+
+                    /* Intermediate commit every 1 mio entries. */
+                    if (id % 1_000_000 == 0) {
+                        b.extraMessage = "Committing..."
+                        client.commit(txId)
+                        txId = client.begin()
+                        b.extraMessage = null
+                    }
                 }
 
                 /* Commit changes. */
+                b.setExtraMessage("Committing...")
                 client.commit(txId)
             } catch (e:Throwable) {
                 client.rollback(txId)
