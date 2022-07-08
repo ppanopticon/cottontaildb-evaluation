@@ -26,10 +26,13 @@ dependencies {
     /* Progress Bar. */
     implementation group: 'me.tongfei', name: 'progressbar', version: '0.9.3'
 
-    /* HDF5 for Java.*/
-    implementation group: 'cisd', name: 'jhdf5', version: '14.12.6'
+    /* Let's plot.*/
+    implementation group: 'org.jetbrains.lets-plot', name: 'lets-plot-common', version: '2.4.0'
+    implementation group: 'org.jetbrains.lets-plot', name: 'lets-plot-image-export', version: '2.4.0'
+    implementation group: 'org.jetbrains.lets-plot', name: 'lets-plot-kotlin-jvm', version: '3.3.0'
 
-    testImplementation 'org.jetbrains.kotlin:kotlin-test'
+    /* SLF4j */
+    implementation group: 'org.slf4j', name: 'slf4j-simple', version: '1.7.36'
 }
 
 test {
