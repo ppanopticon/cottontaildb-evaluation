@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.evaluation
 
 import io.grpc.ManagedChannelBuilder
 import org.vitrivr.cottontail.client.SimpleClient
+import org.vitrivr.cottontail.evaluation.datasets.prepare
 import java.nio.file.Paths
 
 /**
@@ -25,5 +26,11 @@ val workingdir = Paths.get(workingdir_str)
 /**
  *
  */
-fun main() {
+fun main(args: Array<String>) {
+    when (val command = args[0]) {
+        "prepare" -> prepare()
+        else -> {
+            println("Unknown command '${command}'.")
+        }
+    }
 }

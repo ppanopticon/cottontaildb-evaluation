@@ -1,5 +1,6 @@
 plugins {
-    id 'org.jetbrains.kotlin.jvm' version '1.7.0'
+    id 'org.jetbrains.kotlin.jvm' version '1.7.10'
+    id 'application'
 }
 
 group = 'org.vitrivr.cottontail-evaluation'
@@ -10,6 +11,10 @@ repositories {
     maven {
         url "https://maven.imagej.net/content/repositories/public/"
     }
+}
+
+application {
+    mainClassName = 'org.vitrivr.cottontail.evaluation.MainKt'
 }
 
 dependencies {

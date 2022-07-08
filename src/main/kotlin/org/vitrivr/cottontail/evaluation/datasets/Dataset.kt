@@ -10,7 +10,7 @@ import org.vitrivr.cottontail.evaluation.prepareDeep1B
 /**
  * Loads the datasets.
  */
-fun main() {
+fun prepare() {
     /* Start with empty schema. */
     try {
         client.drop(DropSchema("evaluation"))
