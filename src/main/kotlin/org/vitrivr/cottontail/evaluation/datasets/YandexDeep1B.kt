@@ -26,16 +26,9 @@ fun prepareDeep1B()  {
         bar.use { b ->
             var txId = client.begin()
             try {
-                var insert = BatchInsert("evaluation.yandex_deep1b").columns("id", "feature").txId(txId)
+                var insert = BatchInsert("evaluation.yandex_deep1b").columns("id", "feature")
                 while (it.hasNext()) {
                     val (id, vector) = it.next()
-                    if (!insert.append(id, vector)) {
-                        client.insert(insert)
-                        insert = BatchInsert("evaluation.yandex_deep1b").columns("id", "feature").txId(txId)
-                        insert.append(id, vector)
-                        b.stepTo(id.toLong())
-                    }
-
                     /* Intermediate commit every 1 mio entries. */
                     if (id % 1_000_000 == 0) {
                         b.extraMessage = "Committing..."
@@ -43,7 +36,18 @@ fun prepareDeep1B()  {
                         txId = client.begin()
                         b.extraMessage = null
                     }
+
+                    if (!insert.append(id, vector)) {
+                        client.insert(insert.txId(txId))
+                        insert = BatchInsert("evaluation.yandex_deep1b").columns("id", "feature")
+                        insert.append(id, vector)
+                        b.stepTo(id.toLong())
+                    }
                 }
+
+                /* Final insert. */
+                client.insert(insert.txId(txId))
+                b.stepTo(iterator.size.toLong())
 
                 /* Commit changes. */
                 b.setExtraMessage("Committing...")
