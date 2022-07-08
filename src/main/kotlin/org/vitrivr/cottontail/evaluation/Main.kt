@@ -11,11 +11,11 @@ import java.nio.file.Paths
 /**
  * Host and port of Cottontail DB instance that should be tested. Please adjust.
  */
-private val host = "10.34.58.81"
+private val host = "127.0.0.1"
 private val port = 1865
 
 /** The path to the working directory. */
-private val workingdir_str = "/Users/rgasser/Downloads"
+private val workingdir_str = "/home/tank/evaluation"
 
 /** The [ManagedChannel] to used to access Cottontail DB. */
 private val channel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build()
@@ -26,8 +26,7 @@ val client = SimpleClient(channel)
 /** The simple client used by Cottontail DB. */
 val workingdir = Paths.get(workingdir_str)
 
-
-/** */
+/** Default theme for plotting. */
 val plotTheme = theme()
 
 
