@@ -1,6 +1,5 @@
 package org.vitrivr.cottontail.evaluation
 
-import me.tongfei.progressbar.ProgressBar
 import me.tongfei.progressbar.ProgressBarBuilder
 import me.tongfei.progressbar.ProgressBarStyle
 import org.vitrivr.cottontail.client.language.basics.Type
@@ -34,7 +33,7 @@ fun prepareDeep1B()  {
                         b.extraMessage = "Committing..."
                         client.commit(txId)
                         txId = client.begin()
-                        b.extraMessage = null
+                        b.extraMessage = ""
                     }
 
                     if (!insert.append(id, vector)) {
