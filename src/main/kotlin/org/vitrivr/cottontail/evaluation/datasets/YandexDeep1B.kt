@@ -70,7 +70,7 @@ fun prepareDeep1B()  {
                     }
 
                     if (id <= 100_000_000 && !insert2.append(id, vector, category)) {
-                        client.insert(insert1.txId(txId))
+                        client.insert(insert2.txId(txId))
                         insert2 = BatchInsert("evaluation.yandex_deep100m").columns("id", "feature", "category")
                         insert2.append(id, vector, category)
                     }
