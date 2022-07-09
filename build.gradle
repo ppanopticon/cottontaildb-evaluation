@@ -31,6 +31,9 @@ dependencies {
     implementation group: 'org.jetbrains.lets-plot', name: 'lets-plot-image-export', version: '2.4.0'
     implementation group: 'org.jetbrains.lets-plot', name: 'lets-plot-kotlin-jvm', version: '3.3.0'
 
+    /* GSON. */
+    implementation group: 'com.google.code.gson', name: 'gson', version: '2.9.0'
+
     /* SLF4j */
     implementation group: 'org.slf4j', name: 'slf4j-simple', version: '1.7.36'
 }
