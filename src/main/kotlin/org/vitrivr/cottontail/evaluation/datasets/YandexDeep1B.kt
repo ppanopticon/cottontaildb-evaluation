@@ -45,10 +45,10 @@ fun prepareDeep1B()  {
         bar.use { b ->
             var txId = client.begin()
             try {
-                var insert1 = BatchInsert("evaluation.yandex_deep1b").columns("id", "feature")
-                var insert2 = BatchInsert("evaluation.yandex_deep100m").columns("id", "feature")
-                var insert3 = BatchInsert("evaluation.yandex_deep10m").columns("id", "feature")
-                var insert4 = BatchInsert("evaluation.yandex_deep5m").columns("id", "feature")
+                var insert1 = BatchInsert("evaluation.yandex_deep1b").columns("id", "feature", "category")
+                var insert2 = BatchInsert("evaluation.yandex_deep100m").columns("id", "feature", "category")
+                var insert3 = BatchInsert("evaluation.yandex_deep10m").columns("id", "feature", "category")
+                var insert4 = BatchInsert("evaluation.yandex_deep5m").columns("id", "feature", "category")
 
                 val random = SplittableRandom()
                 while (it.hasNext()) {
