@@ -17,7 +17,7 @@ private val host = "127.0.0.1"
 private val port = 1865
 
 /** The path to the working directory. */
-private val basepath = "/home/tank/evaluation"
+private val basepath = "/tank/evaluation"
 
 /** The [ManagedChannel] to used to access Cottontail DB. */
 private val channel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build()
