@@ -9,6 +9,9 @@ version = '1.0-SNAPSHOT'
 repositories {
     mavenCentral()
     maven {
+        url "https://oss.sonatype.org/content/repositories/snapshots/"
+    }
+    maven {
         url "https://maven.imagej.net/content/repositories/public/"
     }
 }
@@ -19,9 +22,17 @@ application {
 
 dependencies {
     /* Cottontail DB driver. */
-    implementation group: 'org.vitrivr', name: 'cottontaildb-proto', version: '0.14.2'
+    implementation group: 'org.vitrivr', name: 'cottontaildb-proto', version: '0.15.0-SNAPSHOT'
     implementation group: 'io.grpc', name: 'grpc-all', version: '1.47.0'
     implementation group: 'com.google.protobuf', name: 'protobuf-java', version: '3.21.2'
+
+    /* Milvus driver. */
+    implementation group:'io.milvus', name: 'milvus-sdk-java', version: '2.0.4'
+
+    /*  CLI & Terminal */
+    implementation group: 'org.jline', name: 'jline', version: '3.21.0'
+    implementation group: 'org.jline', name: 'jline-terminal-jna', version: '3.21.0'
+    implementation group: 'com.github.ajalt.clikt', name: 'clikt', version: '3.5.0'
 
     /* Progress Bar. */
     implementation group: 'me.tongfei', name: 'progressbar', version: '0.9.3'

@@ -1,4 +1,4 @@
-package org.vitrivr.cottontail.evaluation.datasets.iterators
+package org.vitrivr.cottontail.evaluation.datasets
 
 import java.io.Closeable
 

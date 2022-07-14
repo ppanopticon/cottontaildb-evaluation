@@ -1,6 +1,5 @@
-package org.vitrivr.cottontail.evaluation.datasets.iterators
+package org.vitrivr.cottontail.evaluation.datasets
 
-import org.vitrivr.cottontail.evaluation.workingdir
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.channels.SeekableByteChannel
@@ -16,7 +15,7 @@ import java.nio.file.StandardOpenOption
  */
 class YandexDeep1BIterator(path: Path): DatasetIterator {
     /** The [SeekableByteChannel] used to access the .fbin file.*/
-    private val channel: SeekableByteChannel = Files.newByteChannel(workingdir.resolve(path), StandardOpenOption.READ)
+    private val channel: SeekableByteChannel = Files.newByteChannel(path, StandardOpenOption.READ)
 
     /** The number of entries in the file wrapped by this [YandexDeep1BIterator].*/
     override val size: Int
