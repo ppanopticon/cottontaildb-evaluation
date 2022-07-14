@@ -33,7 +33,7 @@ class LoadDataCommand(private val client: MilvusServiceClient, private val worki
         /** Create entity for YANDEX Deep 1B dataset. */
         client.createCollection(
             CreateCollectionParam.newBuilder().withCollectionName("yandex_deep1b")
-                .addFieldType(FieldType.newBuilder().withName("id").withPrimaryKey(true).withDataType(DataType.Int32).build())
+                .addFieldType(FieldType.newBuilder().withName("id").withPrimaryKey(true).withAutoID(true).withDataType(DataType.Int64).build())
                 .addFieldType(FieldType.newBuilder().withName("category").withDataType(DataType.Int32).build())
                 .addFieldType(FieldType.newBuilder().withName("feature").withDataType(DataType.FloatVector).withDimension(96).build())
                 .build()
@@ -41,7 +41,7 @@ class LoadDataCommand(private val client: MilvusServiceClient, private val worki
 
         client.createCollection(
             CreateCollectionParam.newBuilder().withCollectionName("yandex_deep100m")
-                .addFieldType(FieldType.newBuilder().withName("id").withPrimaryKey(true).withDataType(DataType.Int32).build())
+                .addFieldType(FieldType.newBuilder().withName("id").withPrimaryKey(true).withAutoID(true).withDataType(DataType.Int64).build())
                 .addFieldType(FieldType.newBuilder().withName("category").withDataType(DataType.Int32).build())
                 .addFieldType(FieldType.newBuilder().withName("feature").withDataType(DataType.FloatVector).withDimension(96).build())
                 .build()
@@ -49,7 +49,7 @@ class LoadDataCommand(private val client: MilvusServiceClient, private val worki
 
         client.createCollection(
             CreateCollectionParam.newBuilder().withCollectionName("yandex_deep10m")
-                .addFieldType(FieldType.newBuilder().withName("id").withPrimaryKey(true).withDataType(DataType.Int32).build())
+                .addFieldType(FieldType.newBuilder().withName("id").withPrimaryKey(true).withAutoID(true).withDataType(DataType.Int64).build())
                 .addFieldType(FieldType.newBuilder().withName("category").withDataType(DataType.Int32).build())
                 .addFieldType(FieldType.newBuilder().withName("feature").withDataType(DataType.FloatVector).withDimension(96).build())
                 .build()
@@ -57,7 +57,7 @@ class LoadDataCommand(private val client: MilvusServiceClient, private val worki
 
         client.createCollection(
             CreateCollectionParam.newBuilder().withCollectionName("yandex_deep5m")
-                .addFieldType(FieldType.newBuilder().withName("id").withPrimaryKey(true).withDataType(DataType.Int32).build())
+                .addFieldType(FieldType.newBuilder().withName("id").withPrimaryKey(true).withAutoID(true).withDataType(DataType.Int64).build())
                 .addFieldType(FieldType.newBuilder().withName("category").withDataType(DataType.Int32).build())
                 .addFieldType(FieldType.newBuilder().withName("feature").withDataType(DataType.FloatVector).withDimension(96).build())
                 .build()
@@ -69,21 +69,18 @@ class LoadDataCommand(private val client: MilvusServiceClient, private val worki
         iterator.use {
             bar.use { b ->
                 val random = SplittableRandom()
-                val idList = ArrayList<Int>(10000)
                 val categoryList = ArrayList<Int>(10000)
-                val featureList =  ArrayList<FloatArray>(10000)
+                val featureList =  ArrayList<List<Float>>(10000)
                 while (it.hasNext()) {
                     val (id, vector) = it.next()
                     val category = random.nextInt(0, 10)
 
-                    idList.add(id)
                     categoryList.add(category)
-                    featureList.add(vector)
+                    featureList.add(vector.toList())
                     if (id % 10000 == 0) {
                         client.insert(
                             InsertParam.newBuilder().withCollectionName("yandex_deep1b").withFields(
                                 listOf(
-                                    InsertParam.Field("id", DataType.Int32, idList),
                                     InsertParam.Field("category", DataType.Int32, categoryList),
                                     InsertParam.Field("feature", DataType.FloatVector, featureList)
                                 )
@@ -94,7 +91,6 @@ class LoadDataCommand(private val client: MilvusServiceClient, private val worki
                             client.insert(
                                 InsertParam.newBuilder().withCollectionName("yandex_deep100m").withFields(
                                     listOf(
-                                        InsertParam.Field("id", DataType.Int32, idList),
                                         InsertParam.Field("category", DataType.Int32, categoryList),
                                         InsertParam.Field("feature", DataType.FloatVector, featureList)
                                     )
@@ -106,7 +102,6 @@ class LoadDataCommand(private val client: MilvusServiceClient, private val worki
                             client.insert(
                                 InsertParam.newBuilder().withCollectionName("yandex_deep10m").withFields(
                                     listOf(
-                                        InsertParam.Field("id", DataType.Int32, idList),
                                         InsertParam.Field("category", DataType.Int32, categoryList),
                                         InsertParam.Field("feature", DataType.FloatVector, featureList)
                                     )
@@ -118,7 +113,6 @@ class LoadDataCommand(private val client: MilvusServiceClient, private val worki
                             client.insert(
                                 InsertParam.newBuilder().withCollectionName("yandex_deep5m").withFields(
                                     listOf(
-                                        InsertParam.Field("id", DataType.Int32, idList),
                                         InsertParam.Field("category", DataType.Int32, categoryList),
                                         InsertParam.Field("feature", DataType.FloatVector, featureList)
                                     )
@@ -126,7 +120,6 @@ class LoadDataCommand(private val client: MilvusServiceClient, private val worki
                             )
                         }
 
-                        idList.clear()
                         categoryList.clear()
                         featureList.clear()
                     }
