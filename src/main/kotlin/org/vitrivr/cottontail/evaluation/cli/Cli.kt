@@ -180,7 +180,9 @@ class Cli(host: String, private val workingDirectory: Path) {
                         )
                     }
                 }.subcommands(
-                    org.vitrivr.cottontail.evaluation.cli.milvus.LoadDataCommand(this@Cli.milvus, this@Cli.workingDirectory)
+                    org.vitrivr.cottontail.evaluation.cli.milvus.LoadDataCommand(this@Cli.milvus, this@Cli.workingDirectory),
+                    org.vitrivr.cottontail.evaluation.cli.milvus.RuntimeBenchmarkCommand(this@Cli.milvus, this@Cli.workingDirectory)
+
                 ),
 
                 /* General commands. */

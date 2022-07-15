@@ -29,7 +29,7 @@ import kotlin.system.measureTimeMillis
  * @author Ralph Gasser
  * @version 1.0.0
  */
-class RuntimeBenchmarkCommand(client: SimpleClient, workingDirectory: Path): AbstractBenchmarkCommand(client, workingDirectory, name = "runtime", help = "Prepares and loads all data required for Cottontail DB benchmarks.")  {
+class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory: Path): AbstractBenchmarkCommand(workingDirectory, name = "runtime", help = "Prepares and loads all data required for Cottontail DB benchmarks.")  {
 
     /** Flag that can be used to directly provide confirmation. */
     private val k: Int by option("-k", "--k", help = "If set, then only the output will be plot.").int().default(1000)
@@ -54,11 +54,15 @@ class RuntimeBenchmarkCommand(client: SimpleClient, workingDirectory: Path): Abs
         /* Execute benchmark unless plot flag has been set. */
         if (this.plotOnly) {
             /* Export JSON data. */
-            this.data = Files.newBufferedReader(this.output.resolve("data.json")).use { Gson().fromJson(it, Map::class.java) } as Map<String,MutableList<Float>>
+            require(this.output != null) { "Missing parameter --output."}
+            this.data = Files.newBufferedReader(this.output!!.resolve("data.json")).use { Gson().fromJson(it, Map::class.java) } as Map<String,MutableList<Float>>
         } else {
             /* Yandex Deep 5M Series. */
-            this.runYandexDeep1B("evaluation.yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 1)
-            this.runYandexDeep1B("evaluation.yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 2)
+            this.runYandexDeep1B("evaluation.yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 1, indexType = "VAF")
+            this.runYandexDeep1B("evaluation.yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 2, indexType = "VAF")
+            this.runYandexDeep1B("evaluation.yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 4, indexType = "VAF")
+
+            /*this.runYandexDeep1B("evaluation.yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 2)
             this.runYandexDeep1B("evaluation.yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 4)
             this.runYandexDeep1B("evaluation.yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 8)
             this.runYandexDeep1B("evaluation.yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 16)
@@ -125,7 +129,7 @@ class RuntimeBenchmarkCommand(client: SimpleClient, workingDirectory: Path): Abs
             //this.runYandexDeep1B("evaluation.yandex_deep10M", k = this.k, warmup = this.warmup, iterations = this.repeat, noParallel = this.noParallel, this.index)
             //this.runYandexDeep1B("evaluation.yandex_deep100M", k = this.k, warmup = this.warmup, iterations = this.repeat, noParallel = this.noParallel, this.index)
             //this.runYandexDeep1B("evaluation.yandex_deep1B", k = this.k, warmup = this.warmup, iterations = this.repeat, noParallel = this.noParallel, this.index)
-
+            */
             /* Export raw data. */
             this.export()
         }
@@ -136,8 +140,9 @@ class RuntimeBenchmarkCommand(client: SimpleClient, workingDirectory: Path): Abs
 
     override fun plot() {
         /* Make sure out directory exists. */
-        if (!Files.exists(this.output)) {
-            Files.createDirectories(this.output)
+        val out = this.output ?: this.workingDirectory.resolve("out/${System.currentTimeMillis()}")
+        if (!Files.exists(out)) {
+            Files.createDirectories(out)
         }
 
         /* Prepare plot. */
@@ -151,8 +156,8 @@ class RuntimeBenchmarkCommand(client: SimpleClient, workingDirectory: Path): Abs
         recallPlot += ggsize(1000, 500)
 
         /* Export plot as PNG. */
-        ggsave(runtimePlot, filename = "runtime.png", path = this.output.toString())
-        ggsave(recallPlot, filename = "recall.png", path = this.output.toString())
+        ggsave(runtimePlot, filename = "runtime.png", path = out.toString())
+        ggsave(recallPlot, filename = "recall.png", path = out.toString())
     }
 
     /**
@@ -160,12 +165,13 @@ class RuntimeBenchmarkCommand(client: SimpleClient, workingDirectory: Path): Abs
      */
     override fun export() {
         /* Make sure out directory exists. */
-        if (!Files.exists(this.output)) {
-            Files.createDirectories(this.output)
+        val out = this.output ?: this.workingDirectory.resolve("out/${System.currentTimeMillis()}")
+        if (!Files.exists(out)) {
+            Files.createDirectories(out)
         }
 
         /* Export JSON data. */
-        Files.newBufferedWriter(this.output.resolve("data.json"), StandardOpenOption.CREATE_NEW).use {
+        Files.newBufferedWriter(out.resolve("data.json"), StandardOpenOption.CREATE_NEW).use {
             val gson = GsonBuilder().setPrettyPrinting().create()
             gson.toJson(this.data, Map::class.java, gson.newJsonWriter(it))
         }

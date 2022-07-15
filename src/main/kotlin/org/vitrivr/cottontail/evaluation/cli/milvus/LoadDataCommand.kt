@@ -69,15 +69,15 @@ class LoadDataCommand(private val client: MilvusServiceClient, private val worki
         iterator.use {
             bar.use { b ->
                 val random = SplittableRandom()
-                val categoryList = ArrayList<Int>(10000)
-                val featureList =  ArrayList<List<Float>>(10000)
+                val categoryList = ArrayList<Int>(100000)
+                val featureList =  ArrayList<List<Float>>(100000)
                 while (it.hasNext()) {
                     val (id, vector) = it.next()
                     val category = random.nextInt(0, 10)
 
                     categoryList.add(category)
                     featureList.add(vector.toList())
-                    if (id % 10000 == 0) {
+                    if (id % 100000 == 0) {
                         client.insert(
                             InsertParam.newBuilder().withCollectionName("yandex_deep1b").withFields(
                                 listOf(

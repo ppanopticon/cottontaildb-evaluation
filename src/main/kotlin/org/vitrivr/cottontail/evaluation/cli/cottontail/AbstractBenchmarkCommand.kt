@@ -6,7 +6,6 @@ import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.int
-import org.vitrivr.cottontail.client.SimpleClient
 import java.nio.file.Path
 import java.nio.file.Paths
 
@@ -16,13 +15,10 @@ import java.nio.file.Paths
  * @author Ralph Gasser
  * @version 1.0.0
  */
-abstract class AbstractBenchmarkCommand(protected val client: SimpleClient, protected val workingDirectory: Path, name: String, help: String) : CliktCommand(name = name, help = help) {
+abstract class AbstractBenchmarkCommand(protected val workingDirectory: Path, name: String, help: String) : CliktCommand(name = name, help = help) {
 
     /** The [Path] to the output folder. Defaults to "${workingDirectory}/out/${timestamp} */
-    protected val output: Path by option("-o", "-out", help = "The path to the output directory.")
-        .convert { Paths.get(it) }
-        .default(this.workingDirectory.resolve("out/${System.currentTimeMillis()}"))
-
+    protected val output: Path? by option("-o", "-out", help = "The path to the output directory.").convert { Paths.get(it) }
 
     /** The number of warm-up rounds to perform. */
     protected val warmup: Int by option("-w", "--warmup", help = "The number of warmup rounds before starting the benchmark.").int().default(1)
