@@ -3,12 +3,9 @@ package org.vitrivr.cottontail.evaluation.cli.milvus
 import com.github.ajalt.clikt.core.CliktCommand
 import io.milvus.client.MilvusServiceClient
 import io.milvus.grpc.DataType
-import io.milvus.param.IndexType
-import io.milvus.param.MetricType
 import io.milvus.param.collection.CreateCollectionParam
 import io.milvus.param.collection.FieldType
 import io.milvus.param.dml.InsertParam
-import io.milvus.param.index.CreateIndexParam
 import me.tongfei.progressbar.ProgressBarBuilder
 import me.tongfei.progressbar.ProgressBarStyle
 import org.vitrivr.cottontail.evaluation.datasets.YandexDeep1BIterator
@@ -41,7 +38,6 @@ class LoadDataCommand(private val client: MilvusServiceClient, private val worki
                 .addFieldType(FieldType.newBuilder().withName("feature").withDataType(DataType.FloatVector).withDimension(96).build())
                 .build()
         )
-
 
         this.client.createCollection(
             CreateCollectionParam.newBuilder().withCollectionName("yandex_deep100m")
@@ -102,7 +98,7 @@ class LoadDataCommand(private val client: MilvusServiceClient, private val worki
                             )
                         }
 
-                        if (id < 10_000_000) {
+                        if (id <= 10_000_000) {
                             this.client.insert(
                                 InsertParam.newBuilder().withCollectionName("yandex_deep10m").withFields(
                                     listOf(
