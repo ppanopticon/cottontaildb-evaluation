@@ -5,10 +5,16 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.int
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import jetbrains.letsPlot.asDiscrete
 import jetbrains.letsPlot.export.ggsave
+import jetbrains.letsPlot.facet.facetGrid
 import jetbrains.letsPlot.geom.geomBoxplot
+import jetbrains.letsPlot.geom.geomErrorBar
+import jetbrains.letsPlot.geom.geomPoint
 import jetbrains.letsPlot.ggsize
+import jetbrains.letsPlot.label.labs
 import jetbrains.letsPlot.letsPlot
+import jetbrains.letsPlot.scale.ylim
 import me.tongfei.progressbar.ProgressBarBuilder
 import me.tongfei.progressbar.ProgressBarStyle
 import org.vitrivr.cottontail.client.SimpleClient
@@ -53,14 +59,53 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
     override fun run() {
         /* Execute benchmark unless plot flag has been set. */
         if (this.plotOnly) {
-            /* Export JSON data. */
-            require(this.output != null) { "Missing parameter --output."}
-            this.data = Files.newBufferedReader(this.output!!.resolve("data.json")).use { Gson().fromJson(it, Map::class.java) } as Map<String,MutableList<Float>>
+            /* Determine and generate output directory. */
+            val out = this.output ?: Files.walk(this.workingDirectory.resolve("out")).filter { Files.isDirectory(it) }.sorted(Comparator.reverseOrder()).findFirst().orElseThrow {
+                IllegalStateException("Could not identify a most recent output directory. Please specify output directory to plot.")
+            }
+            this.data = Files.newBufferedReader(out.resolve("data.json")).use { Gson().fromJson(it, Map::class.java) } as Map<String,MutableList<Float>>
+
+            /* Generate plots. */
+            this.plot(out)
         } else {
+            /* Determine and generate output directory. */
+            val out = this.output ?: this.workingDirectory.resolve("out/${System.currentTimeMillis()}")
+            if (!Files.exists(out)) {
+                Files.createDirectories(out)
+            }
+
             /* Yandex Deep 5M Series. */
-            this.runYandexDeep1B("evaluation.yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 1, indexType = "VAF")
-            this.runYandexDeep1B("evaluation.yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 2, indexType = "VAF")
-            this.runYandexDeep1B("evaluation.yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 4, indexType = "VAF")
+            this.runYandexDeep1B("yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 2)
+            this.runYandexDeep1B("yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 2, indexType = "VAF")
+            this.runYandexDeep1B("yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 2, indexType = "PQ")
+            this.runYandexDeep1B("yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 4)
+            this.runYandexDeep1B("yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 4, indexType = "VAF")
+            this.runYandexDeep1B("yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 4, indexType = "PQ")
+            this.runYandexDeep1B("yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 8)
+            this.runYandexDeep1B("yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 8, indexType = "VAF")
+            this.runYandexDeep1B("yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 8, indexType = "PQ")
+
+            /* Yandex Deep 10M Series. */
+            this.runYandexDeep1B("yandex_deep10M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 2)
+            this.runYandexDeep1B("yandex_deep10M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 2, indexType = "VAF")
+            this.runYandexDeep1B("yandex_deep10M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 2, indexType = "PQ")
+            this.runYandexDeep1B("yandex_deep10M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 4)
+            this.runYandexDeep1B("yandex_deep10M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 4, indexType = "VAF")
+            this.runYandexDeep1B("yandex_deep10M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 4, indexType = "PQ")
+            this.runYandexDeep1B("yandex_deep10M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 8)
+            this.runYandexDeep1B("yandex_deep10M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 8, indexType = "VAF")
+            this.runYandexDeep1B("yandex_deep10M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 8, indexType = "PQ")
+
+            /* Yandex Deep 100M Series. */
+            this.runYandexDeep1B("yandex_deep100M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 2)
+            this.runYandexDeep1B("yandex_deep100M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 2, indexType = "VAF")
+            this.runYandexDeep1B("yandex_deep100M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 2, indexType = "PQ")
+            this.runYandexDeep1B("yandex_deep100M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 4)
+            this.runYandexDeep1B("yandex_deep100M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 4, indexType = "VAF")
+            this.runYandexDeep1B("yandex_deep100M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 4, indexType = "PQ")
+            this.runYandexDeep1B("yandex_deep100M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 8)
+            this.runYandexDeep1B("yandex_deep100M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 8, indexType = "VAF")
+            this.runYandexDeep1B("yandex_deep100M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 8, indexType = "PQ")
 
             /*this.runYandexDeep1B("evaluation.yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 2)
             this.runYandexDeep1B("evaluation.yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 4)
@@ -131,45 +176,40 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
             //this.runYandexDeep1B("evaluation.yandex_deep1B", k = this.k, warmup = this.warmup, iterations = this.repeat, noParallel = this.noParallel, this.index)
             */
             /* Export raw data. */
-            this.export()
+            this.export(out)
+
+            /* Generate plots. */
+            this.plot(out)
         }
 
-        /* Generate plots. */
-        this.plot()
+
     }
 
-    override fun plot() {
-        /* Make sure out directory exists. */
-        val out = this.output ?: this.workingDirectory.resolve("out/${System.currentTimeMillis()}")
-        if (!Files.exists(out)) {
-            Files.createDirectories(out)
-        }
-
+    override fun plot(out: Path) {
         /* Prepare plot. */
-        var runtimePlot = letsPlot(data) { x = TYPE_KEY; y = RUNTIME_KEY }
-        runtimePlot += geomBoxplot(color = "#A5D7D2") { fill = ENTITY_KEY;  }
+        var runtimePlot = letsPlot(data)
+        runtimePlot += geomBoxplot(color = "#A5D7D2", fill = "#D2EBE9", outlierColor = "#D20537", showLegend = false) { x = asDiscrete(TYPE_KEY); y = RUNTIME_KEY; }
+        runtimePlot += labs(x = "", y = "Runtime [s]")
+        runtimePlot += ylim(listOf(0.0, 10.0))
+        runtimePlot += facetGrid(ENTITY_KEY)
         runtimePlot += ggsize(1000, 500)
 
         /* Recall plot. */
-        var recallPlot = letsPlot(data) { x = TYPE_KEY; y = RECALL_KEY }
-        recallPlot += geomBoxplot(color = "#A5D7D2") { fill = ENTITY_KEY }
-        recallPlot += ggsize(1000, 500)
+        var qualityPlot = letsPlot(data)
+        qualityPlot += geomPoint(color = "#A5D7D2") { x = asDiscrete(TYPE_KEY); y = RECALL_KEY}
+        qualityPlot += labs(x = "", y = "Quality")
+        qualityPlot += ylim(listOf(0.0, 1.0))
+        qualityPlot += ggsize(1000, 500)
 
         /* Export plot as PNG. */
         ggsave(runtimePlot, filename = "runtime.png", path = out.toString())
-        ggsave(recallPlot, filename = "recall.png", path = out.toString())
+        ggsave(qualityPlot, filename = "recall.png", path = out.toString())
     }
 
     /**
      * Exports a data set.
      */
-    override fun export() {
-        /* Make sure out directory exists. */
-        val out = this.output ?: this.workingDirectory.resolve("out/${System.currentTimeMillis()}")
-        if (!Files.exists(out)) {
-            Files.createDirectories(out)
-        }
-
+    override fun export(out: Path) {
         /* Export JSON data. */
         Files.newBufferedWriter(out.resolve("data.json"), StandardOpenOption.CREATE_NEW).use {
             val gson = GsonBuilder().setPrettyPrinting().create()
@@ -181,8 +221,8 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
      * Exports a data set.
      */
     private fun runYandexDeep1B(entity: String, k: Int = 10, warmup: Int = 1, iterations: Int = 10, parallel: Int = 1, indexType: String? = null) {
-        val indexName = indexType ?: "No Index"
-        val type = "$indexName, $parallel"
+        val indexName = indexType ?: "SCAN"
+        val type = "$indexName (p=$parallel)"
         val bar = ProgressBarBuilder().setInitialMax((warmup + iterations).toLong()).setStyle(ProgressBarStyle.ASCII).setTaskName("Running Benchmark ($type)").build()
         YandexDeep1BIterator(this.workingDirectory.resolve("datasets/yandex-deep1b/query.public.10K.fbin")).use {
             /* Warmup query. */
@@ -204,7 +244,7 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
                 val result = executeQuery(entity, feature, k, parallel, indexType)
 
                 /* Record data. */
-                (this.data[ENTITY_KEY] as MutableList<String>).add(entity)
+                (this.data[ENTITY_KEY] as MutableList<String>).add(entity.replace("yandex_", "Yandex "))
                 (this.data[INDEX_KEY] as MutableList<String>).add(indexName)
                 (this.data[PARALLEL_KEY] as MutableList<Int>).add(parallel)
                 (this.data[TYPE_KEY] as MutableList<String>).add(type)
@@ -221,7 +261,7 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
      * Executes a query.
      */
     private fun executeQuery(entity: String, feature: FloatArray, k: Int = 10, parallel: Int = 2, indexType: String? = null): Pair<Long,List<Int>> {
-        var query = Query(entity)
+        var query = Query("evaluation.${entity}")
             .select("id")
             .distance("feature", feature, Distances.L2, "distance")
             .order("distance", Direction.ASC)

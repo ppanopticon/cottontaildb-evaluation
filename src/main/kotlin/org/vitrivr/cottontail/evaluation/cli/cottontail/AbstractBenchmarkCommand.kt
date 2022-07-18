@@ -24,18 +24,22 @@ abstract class AbstractBenchmarkCommand(protected val workingDirectory: Path, na
     protected val warmup: Int by option("-w", "--warmup", help = "The number of warmup rounds before starting the benchmark.").int().default(1)
 
     /** The number of repetitions to perform for a single measurement rounds to perform. */
-    protected val repeat: Int by option("-r", "--repeat", help = "The number of repetitions for a single benchmark.").int().default(5)
+    protected val repeat: Int by option("-r", "--repeat", help = "The number of repetitions for a single benchmark.").int().default(3)
 
     /** Flag that can be used to directly provide confirmation. */
     protected val plotOnly: Boolean by option("-p", "--plot", help = "If set, then only the output will be plot.").flag()
 
     /**
      * Method used to generate export of the data.
+     *
+     * @param out The output [Path].
      */
-    abstract fun export()
+    abstract fun export(out: Path)
 
     /**
      * Method used to generate plots of the data.
+     *
+     * @param out The output [Path].
      */
-    abstract fun plot()
+    abstract fun plot(out: Path)
 }

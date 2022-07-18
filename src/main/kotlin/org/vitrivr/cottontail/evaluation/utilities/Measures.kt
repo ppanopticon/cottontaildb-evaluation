@@ -18,12 +18,12 @@ object Measures {
      */
     fun <T> recall(groundtruth: List<T>, test: List<T>, k: Int = groundtruth.size): Double {
         var relevantAndRetrieved = 0.0
-        for (it in 0 until k.coerceAtMost(groundtruth.size)) {
-            if (groundtruth.contains(test[it])) {
+        for (i in 0 until k.coerceAtMost(groundtruth.size)) {
+            if (test.contains(groundtruth[i])) {
                 relevantAndRetrieved += 1.0
             }
         }
-        return relevantAndRetrieved/groundtruth.size
+        return relevantAndRetrieved / groundtruth.size
     }
 
     /**
