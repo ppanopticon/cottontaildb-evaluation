@@ -50,6 +50,16 @@ class Cli(host: String, private val workingDirectory: Path) {
     /** Generates a new instance of [CottontailCommand]. */
     private val clikt = BenchmarkCommand()
 
+
+    init {
+        Runtime.getRuntime().addShutdownHook(object: Thread() {
+            override fun run() {
+                this@Cli.channel.shutdown()
+                this@Cli.milvus.close()
+            }
+        })
+    }
+
     /**
      * Tries to execute the given CLI command.
      */
