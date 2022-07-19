@@ -1,13 +1,19 @@
 package org.vitrivr.cottontail.evaluation.constants
 
-val ENTITY_KEY = "entity"
-val INDEX_KEY = "index"
-val PARALLEL_KEY = "parallel"
-val TYPE_KEY = "type"
-val RUN_KEY = "run"
-val SIZE_KEY = "size"
-val K_KEY = "k"
-val RUNTIME_KEY = "runtime"
-val RUNTIME_WITH_OFFSET_KEY = "runtime_with_offset"
-val DCG_KEY = "dcg"
-val RECALL_KEY = "recall"
+import jetbrains.letsPlot.elementText
+import jetbrains.letsPlot.scale.scaleColorManual
+import jetbrains.letsPlot.scale.scaleFillManual
+import jetbrains.letsPlot.theme
+
+/**  The theme used by all plots. */
+val THEME = theme(
+    axisTitle = elementText("#2D373C", face = "bold"),
+    axisText = elementText("#46505A"),
+    stripText = elementText("#2D373C", face = "bold")
+)
+
+/**  The scale (line) colors used by all plots. */
+val SCALE_COLORS = scaleColorManual(listOf("#A5D7D2", "#D20F37"))
+
+/**  The fill colors used by all plots. */
+val SCALE_FILLS = scaleFillManual(listOf("#D2EBE9", "#DD879B"))

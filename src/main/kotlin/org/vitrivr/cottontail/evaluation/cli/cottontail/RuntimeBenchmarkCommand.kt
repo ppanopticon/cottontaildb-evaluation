@@ -15,6 +15,7 @@ import jetbrains.letsPlot.ggsize
 import jetbrains.letsPlot.label.labs
 import jetbrains.letsPlot.letsPlot
 import jetbrains.letsPlot.scale.ylim
+import jetbrains.letsPlot.tooltips.layerTooltips
 import me.tongfei.progressbar.ProgressBarBuilder
 import me.tongfei.progressbar.ProgressBarStyle
 import org.vitrivr.cottontail.client.SimpleClient
@@ -36,6 +37,20 @@ import kotlin.system.measureTimeMillis
  * @version 1.0.0
  */
 class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory: Path): AbstractBenchmarkCommand(workingDirectory, name = "runtime", help = "Prepares and loads all data required for Cottontail DB benchmarks.")  {
+
+    companion object {
+        private const val TYPE_KEY = "type"
+        private const val ENTITY_KEY = "entity"
+        private const val RUN_KEY = "run"
+        private const val K_KEY = "k"
+        private const val RESULTS_KEY = "results"
+        private const val GROUNDTRUTH_KEY = "groundtruth"
+        private const val PARALLEL_KEY = "parallel"
+        private const val INDEX_KEY = "index"
+        private const val RUNTIME_KEY = "runtime"
+        private const val DCG_KEY = "dcg"
+        private const val RECALL_KEY = "recall"
+    }
 
     /** Flag that can be used to directly provide confirmation. */
     private val k: Int by option("-k", "--k", help = "If set, then only the output will be plot.").int().default(1000)
@@ -75,10 +90,10 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
             }
 
             /* Yandex Deep 5M Series. */
-            this.runYandexDeep1B("yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 2)
-            this.runYandexDeep1B("yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 2, indexType = "VAF")
-            this.runYandexDeep1B("yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 2, indexType = "PQ")
-            this.runYandexDeep1B("yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 4)
+            //this.runYandexDeep1B("yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 2)
+            //this.runYandexDeep1B("yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 2, indexType = "VAF")
+            this.runYandexDeep1B("yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 1, indexType = "PQ")
+            /*this.runYandexDeep1B("yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 4)
             this.runYandexDeep1B("yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 4, indexType = "VAF")
             this.runYandexDeep1B("yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 4, indexType = "PQ")
             this.runYandexDeep1B("yandex_deep5M", k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 8)
@@ -174,6 +189,7 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
             //this.runYandexDeep1B("evaluation.yandex_deep10M", k = this.k, warmup = this.warmup, iterations = this.repeat, noParallel = this.noParallel, this.index)
             //this.runYandexDeep1B("evaluation.yandex_deep100M", k = this.k, warmup = this.warmup, iterations = this.repeat, noParallel = this.noParallel, this.index)
             //this.runYandexDeep1B("evaluation.yandex_deep1B", k = this.k, warmup = this.warmup, iterations = this.repeat, noParallel = this.noParallel, this.index)
+            */
             */
             /* Export raw data. */
             this.export(out)
