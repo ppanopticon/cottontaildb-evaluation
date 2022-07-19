@@ -17,6 +17,7 @@ object Measures {
      * @param k Optional recall level.
      */
     fun <T> recall(groundtruth: List<T>, test: List<T>, k: Int = groundtruth.size): Double {
+        if (groundtruth.isEmpty()) return 0.0
         var relevantAndRetrieved = 0.0
         for (i in 0 until k.coerceAtMost(groundtruth.size)) {
             if (test.contains(groundtruth[i])) {
@@ -33,13 +34,12 @@ object Measures {
      * @param test The [List] of test data.
      */
     fun <T> dcg(groundtruth: List<T>, test: List<T>): Double {
+        if (groundtruth.isEmpty()) return 0.0
         var dcg = 0.0
-        for ((index, item) in groundtruth.withIndex()) {
-            val indexInTest = test.indexOf(item)
-            dcg += if(indexInTest > 0) {
-                (index + 1.0)/ log2(indexInTest + 2.0)
-            } else {
-                (index + 1.0)/ log2(groundtruth.size + 2.0)
+        for ((index, item) in test.withIndex()) {
+            val indexInGroundtruth = groundtruth.indexOf(item)
+            if(indexInGroundtruth > -1) {
+                dcg += (groundtruth.size + 1.0 - indexInGroundtruth) / log2(index + 2.0)
             }
         }
         return dcg
@@ -52,16 +52,17 @@ object Measures {
      * @param test The [List] of test data.
      */
     fun <T> ndcg(groundtruth: List<T>, test: List<T>): Double {
+        if (groundtruth.isEmpty()) return 0.0
         var dcg = 0.0
         var idcg = 0.0
-        for ((index, item) in groundtruth.withIndex()) {
-            val indexInTest = test.indexOf(item)
-            dcg += if(indexInTest > -1) {
-                (index + 1.0) / log2(indexInTest + 2.0)
-            } else {
-                (index + 1.0) / log2(Int.MAX_VALUE + 2.0)
+        for ((index, item) in test.withIndex()) {
+            val indexInGroundtruth = groundtruth.indexOf(item)
+            if(indexInGroundtruth > -1) {
+                dcg += (groundtruth.size + 1.0 - indexInGroundtruth) / log2(index + 2.0) /* Index is 0-based, i.e., + 2.0. */
             }
-            idcg += (index + 1.0) / log2(index + 2.0)
+        }
+        for (index in test.indices) {
+            idcg += (groundtruth.size + 1.0 - index) / log2(index + 2.0) /* Index is 0-based, i.e., + 2.0. */
         }
         return dcg / idcg
     }
