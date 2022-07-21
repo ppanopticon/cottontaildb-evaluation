@@ -18,7 +18,7 @@ import java.nio.file.Paths
 abstract class AbstractBenchmarkCommand(protected val workingDirectory: Path, name: String, help: String) : CliktCommand(name = name, help = help) {
 
     /** The [Path] to the output folder. Defaults to "${workingDirectory}/out/${timestamp} */
-    protected val output: Path? by option("-o", "-out", help = "The path to the output directory.").convert { Paths.get(it) }
+    protected val name: String? by option("-n", "--name", help = "The name of the measurement.")
 
     /** The number of warm-up rounds to perform. */
     protected val warmup: Int by option("-w", "--warmup", help = "The number of warmup rounds before starting the benchmark.").int().default(1)

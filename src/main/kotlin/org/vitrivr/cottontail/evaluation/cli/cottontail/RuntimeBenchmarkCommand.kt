@@ -75,16 +75,16 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
         /* Execute benchmark unless plot flag has been set. */
         if (this.plotOnly) {
             /* Determine and generate output directory. */
-            val out = this.output ?: Files.walk(this.workingDirectory.resolve("out")).filter { Files.isDirectory(it) }.sorted(Comparator.reverseOrder()).findFirst().orElseThrow {
+            val measurement = this.name?.let { this.workingDirectory.resolve("out/${it}") } ?: Files.walk(this.workingDirectory.resolve("out")).filter { Files.isDirectory(it) }.sorted(Comparator.reverseOrder()).findFirst().orElseThrow {
                 IllegalStateException("Could not identify a most recent output directory. Please specify output directory to plot.")
             }
-            this.data = Files.newBufferedReader(out.resolve("data.json")).use { Gson().fromJson(it, Map::class.java) } as Map<String,MutableList<Float>>
+            this.data = Files.newBufferedReader(measurement.resolve("data.json")).use { Gson().fromJson(it, Map::class.java) } as Map<String,MutableList<Float>>
 
             /* Generate plots. */
-            this.plot(out)
+            this.plot(measurement)
         } else {
             /* Determine and generate output directory. */
-            val out = this.output ?: this.workingDirectory.resolve("out/${System.currentTimeMillis()}")
+            val out = this.name?.let { this.workingDirectory.resolve("out/${it}") } ?: this.workingDirectory.resolve("out/${System.currentTimeMillis()}")
             if (!Files.exists(out)) {
                 Files.createDirectories(out)
             }
