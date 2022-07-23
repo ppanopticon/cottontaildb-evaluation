@@ -1,7 +1,5 @@
 package org.vitrivr.cottontail.evaluation
 
-import jetbrains.letsPlot.elementText
-import jetbrains.letsPlot.theme
 import org.vitrivr.cottontail.evaluation.cli.Cli
 import java.nio.file.Files
 import java.nio.file.Paths

@@ -21,24 +21,9 @@ import io.milvus.param.index.CreateIndexParam
 import io.milvus.param.index.DropIndexParam
 import io.milvus.response.QueryResultsWrapper
 import io.milvus.response.SearchResultsWrapper
-import jetbrains.letsPlot.*
-import jetbrains.letsPlot.export.ggsave
-import jetbrains.letsPlot.facet.facetGrid
-import jetbrains.letsPlot.geom.geomBar
-import jetbrains.letsPlot.geom.geomErrorBar
-import jetbrains.letsPlot.geom.geomPoint
-import jetbrains.letsPlot.geom.geomText
-import jetbrains.letsPlot.label.labs
-import jetbrains.letsPlot.scale.scaleXDiscrete
-import jetbrains.letsPlot.scale.scaleYContinuous
-import jetbrains.letsPlot.scale.ylim
 import me.tongfei.progressbar.ProgressBarBuilder
 import me.tongfei.progressbar.ProgressBarStyle
-import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics
 import org.vitrivr.cottontail.evaluation.cli.cottontail.AbstractBenchmarkCommand
-import org.vitrivr.cottontail.evaluation.constants.SCALE_COLORS
-import org.vitrivr.cottontail.evaluation.constants.SCALE_FILLS
-import org.vitrivr.cottontail.evaluation.constants.THEME
 import org.vitrivr.cottontail.evaluation.datasets.YandexDeep1BIterator
 import org.vitrivr.cottontail.evaluation.utilities.Measures
 import java.nio.file.Files
@@ -65,10 +50,13 @@ class RuntimeBenchmarkCommand(private val client: MilvusServiceClient, workingDi
         private const val DCG_KEY = "dcg"
         private const val RECALL_KEY = "recall"
         private const val TYPE_KEY = "type"
+
+        /** List of entities that should be queried. */
+        private val ENTITIES = listOf("yandex_deep5m", "yandex_deep10m", "yandex_deep100m" /*, "yandex_deep100m"*/)
     }
 
     /** Data frame that holds the data. */
-    private var data: Map<String,Map<String,List<*>>> = HashMap()
+    private var data: MutableMap<String,Map<String,List<*>>> = HashMap()
 
     /** A [SplittableRandom] to generate categories. */
     private val random = SplittableRandom()
@@ -82,129 +70,42 @@ class RuntimeBenchmarkCommand(private val client: MilvusServiceClient, workingDi
     /** K is limited to 1000 entries. */
     private val k = 1000
 
-    /** The list of entities to query.*/
-    private val entities = listOf("yandex_deep5m", "yandex_deep10m", "yandex_deep100m" /*, "yandex_deep100m"*/)
-
     /**
      * Executes the command.
      */
     override fun run() {
         /* Execute benchmark unless plot flag has been set. */
-        if (this.plotOnly) {
-            /* Determine and generate output directory. */
-            val measurement = this.name?.let { this.workingDirectory.resolve("out/${it}") } ?: Files.walk(this.workingDirectory.resolve("out")).filter { Files.isDirectory(it) }.sorted(Comparator.reverseOrder()).findFirst().orElseThrow {
-                IllegalStateException("Could not identify a most recent output directory. Please specify output directory to plot.")
-            }
-            this.data = Files.newBufferedReader(measurement.resolve("data.json")).use { Gson().fromJson(it, Map::class.java) } as MutableMap<String,Map<String,List<*>>>
-
-            /* Generate plots. */
-            this.plot(measurement)
-        } else {
-            /* Make sure that all collections have been released and create / drop indexes. */
-            for (e in this.entities) {
-                this.client.releaseCollection(ReleaseCollectionParam.newBuilder().withCollectionName(e).build())
-                if (this.index != null) {
-                    val message = CreateIndexParam.newBuilder().withCollectionName(e).withFieldName("feature").withIndexType(this.index!!)
-                        .withMetricType(MetricType.L2)
-                        .withSyncMode(true)
-                        .withSyncWaitingInterval(2000L)
-                        .withSyncWaitingTimeout(14400)
-                    if (this.index in setOf(IndexType.IVF_SQ8, IndexType.IVF_PQ))  message.withExtraParam("{\"nlist\":4096}")
-                    this.client.createIndex(message.build())
-                } else {
-                    this.client.dropIndex(DropIndexParam.newBuilder().withCollectionName(e).withFieldName("feature").build())
-                }
-            }
-
-            /* Determine and generate output directory. */
-            val out = this.name?.let { this.workingDirectory.resolve("out/${it}") } ?: this.workingDirectory.resolve("out/${System.currentTimeMillis()}")
-            if (!Files.exists(out)) {
-                Files.createDirectories(out)
-            }
-
-            /* Run workloads. */
-            for (e in this.entities) {
-                this.runYandexDeep1B(e, warmup = this.warmup, iterations = this.repeat)
-            }
-
-            /* Export raw data. */
-            this.export(out)
-
-            /* Generate plots. */
-            this.plot(out)
-        }
-    }
-
-    override fun plot(out: Path) {
-        /* Prepare runtime data. */
-        val runtime = mapOf("x" to mutableListOf<String>(),
-            "y" to mutableListOf<Double>(),
-            "color" to mutableListOf<String>(),
-            "facet" to mutableListOf<String>(),
-            "max" to mutableListOf<String>(),
-            "min" to mutableListOf<String>()
-        )
-        this.data.entries.sortedBy { it.key }.forEach { (entity ,v) ->
-            (v[TYPE_KEY] as List<String>).distinct().forEach { type ->
-                val stats1 = DescriptiveStatistics((v[TYPE_KEY] as List<String>).mapIndexedNotNull { index, t2 ->
-                    if (type == t2) { (v[RUNTIME_KEY] as List<Double>)[index] } else { null }
-                }.toDoubleArray())
-                val stats2 =  DescriptiveStatistics((v[TYPE_KEY] as List<String>).mapIndexedNotNull { index, t2 ->
-                    if (type == t2) { (v[RUNTIME_WITH_LOAD_KEY] as List<Double>)[index] } else { null }
-                }.toDoubleArray())
-                (runtime["x"] as MutableList<String>).addAll(listOf(type, type))
-                (runtime["y"] as MutableList<Double>).addAll(listOf(stats1.mean, stats2.mean))
-                (runtime["color"] as MutableList<String>).addAll(listOf("Query Only", "Query + Loading"))
-                (runtime["facet"] as MutableList<String>).addAll(listOf(entity.replace("yandex_deep","").uppercase(), entity.replace("yandex_deep","").uppercase()))
-                (runtime["max"] as MutableList<Double>).addAll(listOf(stats1.mean + stats1.standardDeviation, stats2.mean + stats2.standardDeviation))
-                (runtime["min"] as MutableList<Double>).addAll(listOf(stats1.mean - stats1.standardDeviation, stats2.mean - stats2.standardDeviation))
+        for (e in ENTITIES) {
+            this.client.releaseCollection(ReleaseCollectionParam.newBuilder().withCollectionName(e).build())
+            if (this.index != null) {
+                val message = CreateIndexParam.newBuilder().withCollectionName(e).withFieldName("feature").withIndexType(this.index!!)
+                    .withMetricType(MetricType.L2)
+                    .withSyncMode(true)
+                    .withSyncWaitingInterval(2000L)
+                    .withSyncWaitingTimeout(14400)
+                if (this.index in setOf(IndexType.IVF_SQ8, IndexType.IVF_PQ))  message.withExtraParam("{\"nlist\":4096}")
+                this.client.createIndex(message.build())
+            } else {
+                this.client.dropIndex(DropIndexParam.newBuilder().withCollectionName(e).withFieldName("feature").build())
             }
         }
 
-
-        /* Prepare quality data. */
-        val quality = mapOf("x" to mutableListOf<String>(),
-            "y" to mutableListOf<Double>(),
-            "facet" to mutableListOf<String>(),
-            "max" to mutableListOf<String>(),
-            "min" to mutableListOf<String>(),
-        )
-        this.data.entries.sortedBy { it.key }.forEach { (entity ,v) ->
-            val stats1 = DescriptiveStatistics((v[DCG_KEY] as List<Double>).toDoubleArray())
-            val stats2 =  DescriptiveStatistics((v[RECALL_KEY] as List<Double>).toDoubleArray())
-            (quality["x"] as MutableList<String>).addAll(listOf("Recall", "DCG"))
-            (quality["y"] as MutableList<Double>).addAll(listOf(stats1.mean, stats2.mean))
-            (quality["facet"] as MutableList<String>).addAll(listOf(entity.replace("yandex_deep","").uppercase(), entity.replace("yandex_deep","").uppercase()))
-            (quality["max"] as MutableList<Double>).addAll(listOf(stats1.mean + stats1.standardDeviation, stats2.mean + stats2.standardDeviation))
-            (quality["min"] as MutableList<Double>).addAll(listOf(stats1.mean - stats1.standardDeviation, stats2.mean - stats2.standardDeviation))
+        /* Determine and generate output directory. */
+        val out = this.name?.let { this.workingDirectory.resolve("out/${it}") } ?: this.workingDirectory.resolve("out/${System.currentTimeMillis()}")
+        if (!Files.exists(out)) {
+            Files.createDirectories(out)
         }
 
-        /* Prepare plot. */
-        var runtimePlot = letsPlot(runtime) { x = "x"; y = "y"; color = "color"; fill = "color"; }
-        runtimePlot += geomBar(stat = Stat.identity, position = positionDodge(0.9)) {  }
-        runtimePlot += geomErrorBar(width = 0.1, position = positionDodge(0.9), showLegend = false) { ymax = "max"; ymin = "min"; }
-        runtimePlot += geomText(size = 6, angle = 90, position = positionDodge(0.9), hjust = "left", showLegend = false, labelFormat = ".2f") { label = "y"; y = "max"; }
-        runtimePlot += scaleXDiscrete(name = "Workload")
-        runtimePlot += scaleYContinuous(name = "Runtime [s]", limits = 0.0 to 220)
-        runtimePlot += facetGrid("facet", xOrder = -1)
-        runtimePlot += SCALE_COLORS
-        runtimePlot += SCALE_FILLS
-        runtimePlot += THEME.legendPosition(0.1, 1).legendJustification(0, 1.0).legendDirectionHorizontal()
-        runtimePlot += ggsize(1000, 600)
+        /* Clear local data. */
+        this.data.clear()
 
-        /* Recall plot. */
-        var qualityPlot = letsPlot(quality) { x = "x"; y = "y"; }
-        qualityPlot += geomPoint(position = Pos.dodge, stat = Stat.identity, size = 8, color = "#A5D7D2", fill = "#D20F37")
-        qualityPlot += geomText(size = 6, angle = 315, position = positionNudge(0.0, -0.075), showLegend = false, labelFormat = ".2f") { label = "y"; }
-        qualityPlot += labs(x = "Metric", y = "Quality")
-        qualityPlot += ylim(listOf(0.0, 1.0))
-        qualityPlot += facetGrid("facet", xOrder = -1)
-        qualityPlot += THEME.legendPosition(1, 0.1).legendJustification(1, 1).legendDirectionHorizontal()
-        qualityPlot += ggsize(1000, 600)
+        /* Run workloads. */
+        for (e in ENTITIES) {
+            this.runYandexDeep1B(e, warmup = this.warmup, iterations = this.repeat)
+        }
 
-        /* Export plot as PNG. */
-        ggsave(runtimePlot, filename = "runtime.png", path = out.toString())
-        ggsave(qualityPlot, filename = "quality.png", path = out.toString())
+        /* Export raw data. */
+        this.export(out)
     }
 
     /**
@@ -223,6 +124,7 @@ class RuntimeBenchmarkCommand(private val client: MilvusServiceClient, workingDi
      */
     private fun runYandexDeep1B(entity: String, warmup: Int = 1, iterations: Int = 10) {
         /* The local data. */
+        this.data
         val localData = mapOf<String,List<*>>(
             RUN_KEY to mutableListOf<Int>(),
             K_KEY to mutableListOf<Int>(),
@@ -273,7 +175,7 @@ class RuntimeBenchmarkCommand(private val client: MilvusServiceClient, workingDi
                     (localData[RUNTIME_KEY] as MutableList<Double>).add(results[i].first)
                     (localData[RUNTIME_WITH_LOAD_KEY] as MutableList<Double>).add(results[i].second)
 
-                    if (gt.isEmpty()) {
+                    if (gt.isNotEmpty()) {
                         (localData[DCG_KEY] as MutableList<Double>).add(Measures.ndcg(gt[i], results[i].third))
                         (localData[RECALL_KEY] as MutableList<Double>).add(Measures.recall(gt[i], results[i].third))
                     } else {
@@ -449,4 +351,76 @@ class RuntimeBenchmarkCommand(private val client: MilvusServiceClient, workingDi
         queryResults.getFieldWrapper("feature").fieldData
         return ids as List<Long>
     }
+
+    /*override fun plot(out: Path) {
+        /* Prepare runtime data. */
+        val runtime = mapOf("x" to mutableListOf<String>(),
+            "y" to mutableListOf<Double>(),
+            "color" to mutableListOf<String>(),
+            "facet" to mutableListOf<String>(),
+            "max" to mutableListOf<String>(),
+            "min" to mutableListOf<String>()
+        )
+        this.data.entries.sortedBy { it.key }.forEach { (entity ,v) ->
+            (v[TYPE_KEY] as List<String>).distinct().forEach { type ->
+                val stats1 = DescriptiveStatistics((v[TYPE_KEY] as List<String>).mapIndexedNotNull { index, t2 ->
+                    if (type == t2) { (v[RUNTIME_KEY] as List<Double>)[index] } else { null }
+                }.toDoubleArray())
+                val stats2 =  DescriptiveStatistics((v[TYPE_KEY] as List<String>).mapIndexedNotNull { index, t2 ->
+                    if (type == t2) { (v[RUNTIME_WITH_LOAD_KEY] as List<Double>)[index] } else { null }
+                }.toDoubleArray())
+                (runtime["x"] as MutableList<String>).addAll(listOf(type, type))
+                (runtime["y"] as MutableList<Double>).addAll(listOf(stats1.mean, stats2.mean))
+                (runtime["color"] as MutableList<String>).addAll(listOf("Query Only", "Query + Loading"))
+                (runtime["facet"] as MutableList<String>).addAll(listOf(entity.replace("yandex_deep","").uppercase(), entity.replace("yandex_deep","").uppercase()))
+                (runtime["max"] as MutableList<Double>).addAll(listOf(stats1.mean + stats1.standardDeviation, stats2.mean + stats2.standardDeviation))
+                (runtime["min"] as MutableList<Double>).addAll(listOf(stats1.mean - stats1.standardDeviation, stats2.mean - stats2.standardDeviation))
+            }
+        }
+
+
+        /* Prepare quality data. */
+        val quality = mapOf("x" to mutableListOf<String>(),
+            "y" to mutableListOf<Double>(),
+            "facet" to mutableListOf<String>(),
+            "max" to mutableListOf<String>(),
+            "min" to mutableListOf<String>(),
+        )
+        this.data.entries.sortedBy { it.key }.forEach { (entity ,v) ->
+            val stats1 = DescriptiveStatistics((v[DCG_KEY] as List<Double>).toDoubleArray())
+            val stats2 =  DescriptiveStatistics((v[RECALL_KEY] as List<Double>).toDoubleArray())
+            (quality["x"] as MutableList<String>).addAll(listOf("Recall", "DCG"))
+            (quality["y"] as MutableList<Double>).addAll(listOf(stats1.mean, stats2.mean))
+            (quality["facet"] as MutableList<String>).addAll(listOf(entity.replace("yandex_deep","").uppercase(), entity.replace("yandex_deep","").uppercase()))
+            (quality["max"] as MutableList<Double>).addAll(listOf(stats1.mean + stats1.standardDeviation, stats2.mean + stats2.standardDeviation))
+            (quality["min"] as MutableList<Double>).addAll(listOf(stats1.mean - stats1.standardDeviation, stats2.mean - stats2.standardDeviation))
+        }
+
+        /* Prepare plot. */
+        var runtimePlot = letsPlot(runtime) { x = "x"; y = "y"; color = "color"; fill = "color"; }
+        runtimePlot += geomBar(stat = Stat.identity, position = positionDodge(0.9)) {  }
+        runtimePlot += geomErrorBar(width = 0.1, position = positionDodge(0.9), showLegend = false) { ymax = "max"; ymin = "min"; }
+        runtimePlot += geomText(size = 6, angle = 90, position = positionDodge(0.9), hjust = "left", showLegend = false, labelFormat = ".2f") { label = "y"; y = "max"; }
+        runtimePlot += scaleXDiscrete(name = "Workload")
+        runtimePlot += scaleYContinuous(name = "Runtime [s]", limits = 0.0 to 300)
+        runtimePlot += facetGrid("facet", xOrder = -1)
+        runtimePlot += SCALE_COLORS
+        runtimePlot += SCALE_FILLS
+        runtimePlot += THEME.legendPosition(0.1, 1).legendJustification(0, 1.0).legendDirectionHorizontal()
+        runtimePlot += ggsize(1000, 600)
+
+        /* Recall plot. */
+        var qualityPlot = letsPlot(quality) { x = "x"; y = "y"; }
+        qualityPlot += geomPoint(position = Pos.dodge, stat = Stat.identity, size = 8, color = "#A5D7D2", fill = "#D20F37")
+        qualityPlot += geomText(size = 6, angle = 315, position = positionNudge(0.0, -0.075), showLegend = false, labelFormat = ".2f") { label = "y"; }
+        qualityPlot += labs(x = "Metric", y = "Quality")
+        qualityPlot += ylim(listOf(0.0, 1.0))
+        qualityPlot += facetGrid("facet", xOrder = -1)
+        qualityPlot += THEME.legendPosition(1, 0.1).legendJustification(1, 1).legendDirectionHorizontal()
+        qualityPlot += ggsize(1000, 600)
+
+        /* Export plot as PNG. */
+        ggsave(runtimePlot, filename = "runtime.png", path = out.toString())
+        ggsave(qualityPlot, filename = "quality.png", path = out.toString())
+    } */
 }

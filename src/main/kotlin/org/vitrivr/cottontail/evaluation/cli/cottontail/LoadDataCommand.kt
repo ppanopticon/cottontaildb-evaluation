@@ -40,7 +40,6 @@ class LoadDataCommand(private val client: SimpleClient, private val workingDir: 
      * Loads and prepares the Yandex DEEP 1B in Cottontail DB.
      */
     private fun yandexDeep1B() {
-
         fun prepareDeep1B() {
             /** Create entity for YANDEX Deep 1B dataset. */
             val create1 = CreateEntity("evaluation.yandex_deep1b")

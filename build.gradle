@@ -23,7 +23,7 @@ application {
 dependencies {
     /* Cottontail DB driver. */
     implementation group: 'org.vitrivr', name: 'cottontaildb-proto', version: '0.15.0-SNAPSHOT'
-    implementation group: 'io.grpc', name: 'grpc-all', version: '1.47.0'
+    implementation group: 'io.grpc', name: 'grpc-all', version: '1.48.0'
     implementation group: 'com.google.protobuf', name: 'protobuf-java', version: '3.21.2'
 
     /* Milvus driver. */
@@ -36,14 +36,6 @@ dependencies {
 
     /* Progress Bar. */
     implementation group: 'me.tongfei', name: 'progressbar', version: '0.9.3'
-
-    /* Commons Math. */
-    implementation group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
-
-    /* Let's plot.*/
-    implementation group: 'org.jetbrains.lets-plot', name: 'lets-plot-common', version: '2.4.0'
-    implementation group: 'org.jetbrains.lets-plot', name: 'lets-plot-image-export', version: '2.4.0'
-    implementation group: 'org.jetbrains.lets-plot', name: 'lets-plot-kotlin-jvm', version: '3.3.0'
 
     /* GSON. */
     implementation group: 'com.google.code.gson', name: 'gson', version: '2.9.0'
