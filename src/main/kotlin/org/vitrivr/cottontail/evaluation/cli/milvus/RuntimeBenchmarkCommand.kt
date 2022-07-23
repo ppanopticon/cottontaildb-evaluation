@@ -193,7 +193,7 @@ class RuntimeBenchmarkCommand(private val client: MilvusServiceClient, workingDi
             }
 
             /* Append data to map. */
-            (this.data as MutableMap)[entity] = localData
+            this.data[entity] = localData
         }
     }
 
