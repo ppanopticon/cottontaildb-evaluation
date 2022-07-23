@@ -141,18 +141,18 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
             /* Benchmark query. */
             for (r in 0 until iterations) {
                 val (_, feature) = it.next()
-                val results = this.executeWorkload(entity, feature, category, k, parallel)
+                val results = this.executeWorkload(entity, feature, category, k, parallel, indexType)
 
                 val labels = arrayOf("NNS", "NNS + Fetch", "Hybrid")
                 val qp = arrayOf(
-                    explainNNSQuery(entity, feature, k, 1, indexType),
-                    explainNNSQueryWithFeature(entity, feature, k, 1, indexType),
-                    explainHybridQuery(entity, feature, category, k, 1, indexType)
+                    explainNNSQuery(entity, feature, k, parallel, indexType),
+                    explainNNSQueryWithFeature(entity, feature, k, parallel, indexType),
+                    explainHybridQuery(entity, feature, category, k, parallel, indexType)
                 )
                 val gt = arrayOf(
-                    executeNNSQuery(entity, feature, k, 1, null),
-                    executeNNSQueryWithFeature(entity, feature, k, 1, null),
-                    executeHybridQuery(entity, feature, category, k, 1, null)
+                    executeNNSQuery(entity, feature, k, 8),
+                    executeNNSQueryWithFeature(entity, feature, k, 8),
+                    executeHybridQuery(entity, feature, category, k, 8)
                 )
 
                 /* Record data. */
