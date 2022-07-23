@@ -44,7 +44,7 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
         private const val RECALL_KEY = "recall"
 
         /** List of entities that should be queried. */
-        private val ENTITIES = listOf("yandex_deep5m", "yandex_deep10m", "yandex_deep100m", "yandex_deep100m")
+        private val ENTITIES = listOf("yandex_deep5m", "yandex_deep10m", "yandex_deep100m")
     }
 
     /** Flag that can be used to directly provide confirmation. */
@@ -88,13 +88,13 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
             /* Initialise progress bar. */
             this.progress = ProgressBarBuilder()
                 .setInitialMax(((this.warmup + this.repeat) * ENTITIES.size * 15).toLong())
-                .setStyle(ProgressBarStyle.ASCII).setTaskName("Running ANNS Benchmark...").build()
+                .setStyle(ProgressBarStyle.ASCII).setTaskName("ANNS Benchmark:").build()
 
             /* Execute workload. */
             for (e in ENTITIES) {
                 for (p in listOf(2, 4, 8, 16, 32)) {
                     this.runYandexDeep1B(e, k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = p)
-                    this.runYandexDeep1B(e, k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = p, indexType = "BTREE")
+                    this.runYandexDeep1B(e, k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = p, indexType = "VAF")
                     this.runYandexDeep1B(e, k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = p, indexType = "PQ")
                 }
             }
@@ -128,7 +128,7 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
             val category = this.random.nextInt(0, 10)
 
             /* Warmup query. */
-            this.progress?.extraMessage = "Warmup (p ?= $parallel, index = ${indexName})..."
+            this.progress?.extraMessage = "$entity (p=$parallel, index=${indexName})"
             for (w in 0 until warmup) {
                 val (_, feature) = it.next()
                 this.executeNNSQuery(entity, feature, k, parallel, indexType)
@@ -138,22 +138,21 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
                 this.progress?.step()
             }
 
-            // Benchmark query.
-            this.progress?.extraMessage = "Benchmark (p ?= $parallel, index = ${indexName})..."
+            /* Benchmark query. */
             for (r in 0 until iterations) {
                 val (_, feature) = it.next()
                 val results = this.executeWorkload(entity, feature, category, k, parallel)
 
+                val labels = arrayOf("NNS", "NNS + Fetch", "Hybrid")
                 val qp = arrayOf(
-                    explainNNSQuery(entity, feature, k, 1, null),
-                    explainNNSQueryWithFeature(entity, feature, k, 1, null),
-                    explainHybridQuery(entity, feature, category, k, 1, "BTREE")
+                    explainNNSQuery(entity, feature, k, 1, indexType),
+                    explainNNSQueryWithFeature(entity, feature, k, 1, indexType),
+                    explainHybridQuery(entity, feature, category, k, 1, indexType)
                 )
-
                 val gt = arrayOf(
                     executeNNSQuery(entity, feature, k, 1, null),
                     executeNNSQueryWithFeature(entity, feature, k, 1, null),
-                    executeHybridQuery(entity, feature, category, k, 1, "BTREE")
+                    executeHybridQuery(entity, feature, category, k, 1, null)
                 )
 
                 /* Record data. */
@@ -168,21 +167,8 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
                     (this.data[RUNTIME_KEY] as MutableList<Double>).add(results[i].first)
                     (this.data[DCG_KEY] as MutableList<Double>).add(Measures.ndcg(gt[i], results[i].second))
                     (this.data[RECALL_KEY] as MutableList<Double>).add(Measures.recall(gt[i], results[i].second))
-                    when (i) {
-                        0 -> {
-                            (this.data[PLAN_KEY] as MutableList<List<String>>).add(qp[i])
-                            (this.data[QUERY_KEY] as MutableList<String>).add("NNS")
-                        }
-                        1 -> {
-                            (this.data[PLAN_KEY] as MutableList<List<String>>).add(qp[i])
-                            (this.data[QUERY_KEY] as MutableList<String>).add("NNS + Fetch")
-                        }
-                        2 -> {
-                            (this.data[PLAN_KEY] as MutableList<List<String>>).add(qp[i])
-                            (this.data[QUERY_KEY] as MutableList<String>).add("Hybrid")
-                        }
-                        else -> throw IllegalStateException("This should not happen!")
-                    }
+                    (this.data[PLAN_KEY] as MutableList<List<String>>).add(qp[i])
+                    (this.data[QUERY_KEY] as MutableList<String>).add(labels[i])
                 }
 
                 /* Indicate progress. */
