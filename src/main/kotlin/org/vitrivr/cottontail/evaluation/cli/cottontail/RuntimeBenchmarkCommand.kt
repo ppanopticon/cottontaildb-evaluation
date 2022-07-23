@@ -44,7 +44,7 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
         private const val RECALL_KEY = "recall"
 
         /** List of entities that should be queried. */
-        private val ENTITIES = listOf("yandex_deep5m" /*, "yandex_deep10m", "yandex_deep100m", "yandex_deep100m"*/)
+        private val ENTITIES = listOf("yandex_deep5m", "yandex_deep10m", "yandex_deep100m", "yandex_deep100m")
     }
 
     /** Flag that can be used to directly provide confirmation. */
@@ -55,7 +55,6 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
 
     /** Data frame that holds the data. */
     private var data: MutableMap<String,List<*>> = mutableMapOf()
-
 
     /** Progress bar used*/
     private var progress: ProgressBar? = null
@@ -72,6 +71,7 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
 
         /* Clear local data. */
         this.data.clear()
+        this.data[PLAN_KEY] = mutableListOf<List<String>>()
         this.data[ENTITY_KEY] = mutableListOf<String>()
         this.data[RUN_KEY] = mutableListOf<Int>()
         this.data[K_KEY] = mutableListOf<Int>()
@@ -87,15 +87,15 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
         try {
             /* Initialise progress bar. */
             this.progress = ProgressBarBuilder()
-                .setInitialMax(((this.warmup + this.repeat) * ENTITIES.size * 12).toLong())
+                .setInitialMax(((this.warmup + this.repeat) * ENTITIES.size * 15).toLong())
                 .setStyle(ProgressBarStyle.ASCII).setTaskName("Running ANNS Benchmark...").build()
 
             /* Execute workload. */
             for (e in ENTITIES) {
-                for (p in listOf(2, 4, 8, 16)) {
-                    //this.runYandexDeep1B(e, k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = p)
+                for (p in listOf(2, 4, 8, 16, 32)) {
+                    this.runYandexDeep1B(e, k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = p)
                     this.runYandexDeep1B(e, k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = p, indexType = "BTREE")
-                    //this.runYandexDeep1B(e, k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = p, indexType = "PQ")
+                    this.runYandexDeep1B(e, k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = p, indexType = "PQ")
                 }
             }
         } finally {
