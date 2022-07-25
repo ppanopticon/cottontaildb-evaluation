@@ -44,7 +44,7 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
         private const val RECALL_KEY = "recall"
 
         /** List of entities that should be queried. */
-        private val ENTITIES = listOf("yandex_deep5m", "yandex_deep10m", "yandex_deep100m")
+        private val ENTITIES = listOf("yandex_deep5m", "yandex_deep10m", "yandex_deep100m"/*, "yandex_deep1b"*/)
     }
 
     /** Flag that can be used to directly provide confirmation. */
@@ -92,10 +92,11 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
 
             /* Execute workload. */
             for (e in ENTITIES) {
-                for (p in listOf(2, 4, 8, 16, 32)) {
+                for (p in listOf(8, 16, 32)) {
                     this.runYandexDeep1B(e, k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = p)
                     this.runYandexDeep1B(e, k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = p, indexType = "VAF")
                     this.runYandexDeep1B(e, k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = p, indexType = "PQ")
+                    this.runYandexDeep1B(e, k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = p, indexType = "IVFPQ")
                 }
             }
         } finally {
@@ -121,7 +122,7 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
     /**
      * Exports a data set.
      */
-    private fun runYandexDeep1B(entity: String, k: Int = 10, warmup: Int = 1, iterations: Int = 10, parallel: Int = 1, indexType: String? = null) {
+    private fun runYandexDeep1B(entity: String, k: Int, warmup: Int, iterations: Int, parallel: Int, indexType: String? = null) {
         val indexName = indexType ?: "SCAN"
         YandexDeep1BIterator(this.workingDirectory.resolve("datasets/yandex-deep1b/query.public.10K.fbin")).use {
             /* Select random category for hybrid query. */
