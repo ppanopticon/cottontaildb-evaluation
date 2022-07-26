@@ -209,7 +209,7 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
                     (this.data[K_KEY] as MutableList<Int>).add(k)
                     (this.data[RUN_KEY] as MutableList<Int>) += (r + 1)
                     (this.data[GROUNDTRUTH_KEY] as MutableList<List<Int>>).add(gt[i])
-                    (this.data[RUNTIME_KEY] as MutableList<Double>).add(results[i].first)
+                    (this.data[RESULTS_KEY] as MutableList<List<Int>>).add(results[i].second)
 
                     /* Record measurements. */
                     (this.measurements[ENTITY_KEY] as MutableList<String>).add(entity)
@@ -217,7 +217,6 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
                     (this.measurements[K_KEY] as MutableList<Int>).add(k)
                     (this.measurements[PARALLEL_KEY] as MutableList<Int>).add(parallel)
                     (this.measurements[INDEX_KEY] as MutableList<String>).add(indexName)
-                    (this.measurements[RESULTS_KEY] as MutableList<List<Int>>).add(results[i].second)
                     (this.measurements[DCG_KEY] as MutableList<Double>).add(Measures.ndcg(gt[i], results[i].second))
                     (this.measurements[RECALL_KEY] as MutableList<Double>).add(Measures.recall(gt[i], results[i].second))
                     (this.measurements[QUERY_KEY] as MutableList<String>).add(QUERIES[i])
