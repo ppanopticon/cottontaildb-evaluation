@@ -25,7 +25,7 @@ import kotlin.system.measureTimeMillis
  * Performs a simple runtime measurement for a series of queries.
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.0.1
  */
 class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory: Path): AbstractBenchmarkCommand(workingDirectory, name = "runtime", help = "Prepares and loads all data required for Cottontail DB benchmarks.")  {
 
@@ -44,7 +44,10 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
         private const val RECALL_KEY = "recall"
 
         /** List of entities that should be queried. */
-        private val ENTITIES = listOf("yandex_deep5m", "yandex_deep10m", "yandex_deep100m"/*, "yandex_deep1b"*/)
+        private val ENTITIES = listOf("yandex_deep5m", "yandex_deep10m", "yandex_deep100m", "yandex_deep1b")
+
+        /** List of query workloads that are being executed. */
+        private val QUERIES =  arrayOf("NNS", "NNS + Fetch", "Hybrid")
     }
 
     /** Flag that can be used to directly provide confirmation. */
@@ -53,8 +56,14 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
     /** A [SplittableRandom] to generate categories. */
     private val random = SplittableRandom()
 
+    /** Data frame that holds the measurements. */
+    private val measurements: MutableMap<String,List<*>> = mutableMapOf()
+
     /** Data frame that holds the data. */
-    private var data: MutableMap<String,List<*>> = mutableMapOf()
+    private val data: MutableMap<String,List<*>> = mutableMapOf()
+
+    /** Data frame that holds the query plans. */
+    private val plans: MutableMap<String,List<*>> = mutableMapOf()
 
     /** Progress bar used*/
     private var progress: ProgressBar? = null
@@ -70,34 +79,46 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
         }
 
         /* Clear local data. */
+        this.measurements.clear()
+        this.measurements[ENTITY_KEY] = mutableListOf<String>()
+        this.measurements[RUN_KEY] = mutableListOf<Int>()
+        this.measurements[K_KEY] = mutableListOf<Int>()
+        this.measurements[INDEX_KEY] = mutableListOf<String>()
+        this.measurements[PARALLEL_KEY] =  mutableListOf<Int>()
+        this.measurements[RUNTIME_KEY] = mutableListOf<Double>()
+        this.measurements[DCG_KEY] = mutableListOf<Double>()
+        this.measurements[RECALL_KEY] = mutableListOf<Double>()
+        this.measurements[QUERY_KEY] = mutableListOf<String>()
+
+        /* Clear data map. */
         this.data.clear()
-        this.data[PLAN_KEY] = mutableListOf<List<String>>()
         this.data[ENTITY_KEY] = mutableListOf<String>()
-        this.data[RUN_KEY] = mutableListOf<Int>()
-        this.data[K_KEY] = mutableListOf<Int>()
         this.data[INDEX_KEY] = mutableListOf<String>()
         this.data[PARALLEL_KEY] =  mutableListOf<Int>()
-        this.data[RUNTIME_KEY] = mutableListOf<Double>()
-        this.data[DCG_KEY] = mutableListOf<Double>()
-        this.data[RECALL_KEY] = mutableListOf<Double>()
-        this.data[QUERY_KEY] = mutableListOf<String>()
-        this.data[RESULTS_KEY] = mutableListOf<List<Int>>()
-        this.data[GROUNDTRUTH_KEY] = mutableListOf<List<Int>>()
+        this.data[RUN_KEY] = mutableListOf<Int>()
+        this.data[K_KEY] = mutableListOf<Int>()
+        this.data[RESULTS_KEY] = mutableListOf<List<String>>()
+        this.data[GROUNDTRUTH_KEY] = mutableListOf<List<String>>()
+
+        /* Clear plans map. */
+        this.plans.clear()
+        this.plans[ENTITY_KEY] = mutableListOf<String>()
+        this.plans[INDEX_KEY] = mutableListOf<String>()
+        this.plans[QUERY_KEY] = mutableListOf<String>()
+        this.plans[PLAN_KEY] =  mutableListOf<List<String>>()
 
         try {
             /* Initialise progress bar. */
             this.progress = ProgressBarBuilder()
-                .setInitialMax(((this.warmup + this.repeat) * ENTITIES.size * 15).toLong())
+                .setInitialMax(((this.warmup + this.repeat) * ENTITIES.size * 4).toLong())
                 .setStyle(ProgressBarStyle.ASCII).setTaskName("ANNS Benchmark:").build()
 
             /* Execute workload. */
             for (e in ENTITIES) {
-                for (p in listOf(8, 16, 32)) {
-                    this.runYandexDeep1B(e, k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = p)
-                    this.runYandexDeep1B(e, k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = p, indexType = "VAF")
-                    this.runYandexDeep1B(e, k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = p, indexType = "PQ")
-                    this.runYandexDeep1B(e, k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = p, indexType = "IVFPQ")
-                }
+                this.runYandexDeep1B(e, k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 32)
+                this.runYandexDeep1B(e, k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 32, indexType = "VAF")
+                this.runYandexDeep1B(e, k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 32, indexType = "PQ")
+                this.runYandexDeep1B(e, k = this.k, warmup = this.warmup, iterations = this.repeat, parallel = 32, indexType = "IVFPQ")
             }
         } finally {
             this.export(out)
@@ -113,9 +134,21 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
      */
     override fun export(out: Path) {
         /* Export JSON data. */
+        Files.newBufferedWriter(out.resolve("measurements.json"), StandardOpenOption.CREATE_NEW).use {
+            val gson = GsonBuilder().setPrettyPrinting().create()
+            gson.toJson(this.measurements, Map::class.java, gson.newJsonWriter(it))
+        }
+
+        /* Export JSON data. */
         Files.newBufferedWriter(out.resolve("data.json"), StandardOpenOption.CREATE_NEW).use {
             val gson = GsonBuilder().setPrettyPrinting().create()
             gson.toJson(this.data, Map::class.java, gson.newJsonWriter(it))
+        }
+
+        /* Export JSON data. */
+        Files.newBufferedWriter(out.resolve("plans.json"), StandardOpenOption.CREATE_NEW).use {
+            val gson = GsonBuilder().setPrettyPrinting().create()
+            gson.toJson(this.plans, Map::class.java, gson.newJsonWriter(it))
         }
     }
 
@@ -142,34 +175,52 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
             /* Benchmark query. */
             for (r in 0 until iterations) {
                 val (_, feature) = it.next()
+
+                /* Obtain query plans. */
+                if (r == 0) {
+                    val qp = arrayOf(
+                        explainNNSQuery(entity, feature, k, parallel, indexType),
+                        explainNNSQueryWithFeature(entity, feature, k, parallel, indexType),
+                        explainHybridQuery(entity, feature, category, k, parallel, indexType)
+                    )
+                    for ((q,p) in QUERIES.zip(qp)) {
+                        (this.plans[ENTITY_KEY] as MutableList<String>) += entity
+                        (this.plans[INDEX_KEY] as MutableList<String>) += indexType ?: "SCAN"
+                        (this.plans[QUERY_KEY] as MutableList<String>) += q
+                        (this.plans[PLAN_KEY] as MutableList<List<String>>) += p
+                    }
+                }
+
+                /* Execute actual workload. */
                 val results = this.executeWorkload(entity, feature, category, k, parallel, indexType)
 
-                val labels = arrayOf("NNS", "NNS + Fetch", "Hybrid")
-                val qp = arrayOf(
-                    explainNNSQuery(entity, feature, k, parallel, indexType),
-                    explainNNSQueryWithFeature(entity, feature, k, parallel, indexType),
-                    explainHybridQuery(entity, feature, category, k, parallel, indexType)
-                )
+                /* Obtain groundtrut. */
                 val gt = arrayOf(
                     executeNNSQuery(entity, feature, k, 8),
                     executeNNSQueryWithFeature(entity, feature, k, 8),
                     executeHybridQuery(entity, feature, category, k, 8)
                 )
 
-                /* Record data. */
                 for (i in 0 until 3) {
-                    (this.data[ENTITY_KEY] as MutableList<String>).add(entity)
-                    (this.data[RUN_KEY] as MutableList<Int>).add(r + 1)
+                    /* Record data and groundtruth. */
+                    (this.data[ENTITY_KEY] as MutableList<String>) += entity
+                    (this.data[INDEX_KEY] as MutableList<String>) += indexType ?: "SCAN"
+                    (this.data[PARALLEL_KEY] as MutableList<Int>) += parallel
                     (this.data[K_KEY] as MutableList<Int>).add(k)
-                    (this.data[PARALLEL_KEY] as MutableList<Int>).add(parallel)
-                    (this.data[INDEX_KEY] as MutableList<String>).add(indexName)
-                    (this.data[RESULTS_KEY] as MutableList<List<Int>>).add(results[i].second)
+                    (this.data[RUN_KEY] as MutableList<Int>) += (r + 1)
                     (this.data[GROUNDTRUTH_KEY] as MutableList<List<Int>>).add(gt[i])
                     (this.data[RUNTIME_KEY] as MutableList<Double>).add(results[i].first)
-                    (this.data[DCG_KEY] as MutableList<Double>).add(Measures.ndcg(gt[i], results[i].second))
-                    (this.data[RECALL_KEY] as MutableList<Double>).add(Measures.recall(gt[i], results[i].second))
-                    (this.data[PLAN_KEY] as MutableList<List<String>>).add(qp[i])
-                    (this.data[QUERY_KEY] as MutableList<String>).add(labels[i])
+
+                    /* Record measurements. */
+                    (this.measurements[ENTITY_KEY] as MutableList<String>).add(entity)
+                    (this.measurements[RUN_KEY] as MutableList<Int>).add(r + 1)
+                    (this.measurements[K_KEY] as MutableList<Int>).add(k)
+                    (this.measurements[PARALLEL_KEY] as MutableList<Int>).add(parallel)
+                    (this.measurements[INDEX_KEY] as MutableList<String>).add(indexName)
+                    (this.measurements[RESULTS_KEY] as MutableList<List<Int>>).add(results[i].second)
+                    (this.measurements[DCG_KEY] as MutableList<Double>).add(Measures.ndcg(gt[i], results[i].second))
+                    (this.measurements[RECALL_KEY] as MutableList<Double>).add(Measures.recall(gt[i], results[i].second))
+                    (this.measurements[QUERY_KEY] as MutableList<String>).add(QUERIES[i])
                 }
 
                 /* Indicate progress. */
