@@ -196,9 +196,9 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
 
                 /* Obtain groundtrut. */
                 val gt = arrayOf(
-                    executeNNSQuery(entity, feature, k, 8),
-                    executeNNSQueryWithFeature(entity, feature, k, 8),
-                    executeHybridQuery(entity, feature, category, k, 8)
+                    executeNNSQuery(entity, feature, k, 32),
+                    executeNNSQueryWithFeature(entity, feature, k, 32),
+                    executeHybridQuery(entity, feature, category, k, 32)
                 )
 
                 for (i in 0 until 3) {
