@@ -155,6 +155,12 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
             val gson = GsonBuilder().setPrettyPrinting().create()
             gson.toJson(this.data, Map::class.java, gson.newJsonWriter(it))
         }
+
+        /* Export raw data. */
+        Files.newBufferedWriter(out.resolve("plans.json"), StandardOpenOption.CREATE_NEW).use {
+            val gson = GsonBuilder().setPrettyPrinting().create()
+            gson.toJson(this.plans, Map::class.java, gson.newJsonWriter(it))
+        }
     }
 
     /**
