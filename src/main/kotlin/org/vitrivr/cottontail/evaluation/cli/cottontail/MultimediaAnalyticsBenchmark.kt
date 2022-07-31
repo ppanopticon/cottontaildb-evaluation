@@ -102,6 +102,7 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
         /* Clear data map. */
         this.data.clear()
         this.data[ENTITY_KEY] = mutableListOf<String>()
+        this.data[QUERY_KEY] = mutableListOf<String>()
         this.data[INDEX_KEY] = mutableListOf<String>()
         this.data[PARALLEL_KEY] =  mutableListOf<Int>()
         this.data[RUN_KEY] = mutableListOf<Int>()
@@ -201,18 +202,6 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
                     (this.plans[QUERY_KEY] as MutableList<String>) += q
                     (this.plans[PLAN_KEY] as MutableList<List<String>>) += p
                 }
-            }
-
-            /* Record the raw data. */
-            for ((q, data) in QUERIES.zip(arrayOf(emptyList<String>() to emptyList(), emptyList<String>() to emptyList(), r3 to gt3, r4 to gt4, r5 to gt5))) {
-                (this.data[ENTITY_KEY] as MutableList<String>) += entity
-                (this.data[QUERY_KEY] as MutableList<String>) += q
-                (this.data[INDEX_KEY] as MutableList<String>) += indexType ?: "SCAN"
-                (this.data[PARALLEL_KEY] as MutableList<Int>) += parallel
-                (this.data[RUN_KEY] as MutableList<Int>) += (r + 1)
-                (this.data[RESULTS_KEY] as MutableList<List<String>>) += data.first
-                (this.data[GROUNDTRUTH_KEY] as MutableList<List<String>>) +=  data.second
-                (this.data[K_KEY] as MutableList<Int>) += this.k
             }
 
             /* Record measurements. */
