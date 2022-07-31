@@ -11,7 +11,6 @@ import org.vitrivr.cottontail.client.SimpleClient
 import org.vitrivr.cottontail.client.language.basics.Direction
 import org.vitrivr.cottontail.client.language.basics.Distances
 import org.vitrivr.cottontail.client.language.basics.predicate.Expression
-import org.vitrivr.cottontail.client.language.basics.predicate.SubSelect
 import org.vitrivr.cottontail.client.language.dql.Query
 import org.vitrivr.cottontail.evaluation.utilities.Measures
 import java.nio.file.Files
@@ -187,11 +186,11 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
 
             /* Range search. */
             val (time3, r1: List<String>, plan3) = this.executeRangeQuery(entity, queryVector, mean, this.k, parallel, indexType)
-            val gt1 = this.executeFNSInSubSelectQuery(entity, queryVector, this.k, parallel).second
+            val gt1 = this.executeRangeQuery(entity, queryVector, mean, this.k, parallel).second
 
             /* FNS search. */
-            val (time4, r2: List<String>, plan4) = this.executeFNSInSubSelectQuery(entity, queryVector, this.k, parallel, indexType)
-            val gt2 = this.executeFNSInSubSelectQuery(entity, queryVector, this.k, parallel).second
+            val (time4, r2: List<String>, plan4) = this.executeSelectIn(r1, parallel, indexType)
+            val gt2 = this.executeSelectIn(gt1, parallel).second
 
             /* Record the query execution plans (one) per type of query! */
             if (r == 0) {
@@ -325,31 +324,26 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
      * @param parallel The level of parallelisation.
      * @param indexType The index to use.
      */
-    private fun executeFNSInSubSelectQuery(entity: String, queryVector: FloatArray, k: Int, parallel: Int, indexType: String? = null): Triple<Long,List<String>,List<String>> {
-        val innerQuery = Query("cineast.${entity}")
-            .select("id")
-            .distance("feature", queryVector, Distances.L2, "distance")
-            .order("distance", Direction.DESC)
-            .limit(k.toLong())
-
-        var outerQuery = Query("cineast.cineast_segment").select("*").where(SubSelect("segmentid", "IN", innerQuery))
+    private fun executeSelectIn(ids: List<String>, parallel: Int, indexType: String? = null): Triple<Long,List<String>,List<String>> {
+        var query = Query("cineast.cineast_segment")
+            .select("*").where(Expression("segmentid", "IN", ids))
 
         /* Parametrise. */
-        outerQuery = outerQuery.limitParallelism(parallel)
+        query = query.limitParallelism(parallel)
         if (indexType == null) {
-            outerQuery.disallowIndex()
+            query.disallowIndex()
         } else {
-            outerQuery.useIndexType(indexType)
+            query.useIndexType(indexType)
         }
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
-        this.client.explain(outerQuery).forEach { plan.add(it.asString("comment")!!) }
+        this.client.explain(query).forEach { plan.add(it.asString("comment")!!) }
 
         /* Retrieve results. */
         val results = ArrayList<String>(this.k)
         val time = measureTimeMillis {
-            this.client.query(outerQuery).forEach { t ->
-                results.add(t.asString("id")!!)
+            this.client.query(query).forEach { t ->
+                results.add(t.asString("segmentid")!!)
             }
         }
         return Triple(time, results, plan)
