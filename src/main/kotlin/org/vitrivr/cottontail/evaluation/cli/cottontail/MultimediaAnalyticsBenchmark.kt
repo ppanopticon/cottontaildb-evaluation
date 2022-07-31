@@ -35,14 +35,10 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
         private const val PARALLEL_KEY = "parallel"
         private const val INDEX_KEY = "index"
         private const val RUNTIME_KEY = "runtime"
-        private const val DCG_RANGE_KEY = "ndcg_range"
-        private const val RECALL_RANGE_KEY = "recall_range"
-        private const val DCG_FNS_KEY = "ndcg_fns"
-        private const val RECALL_FNS_KEY = "recall_fns"
-        private const val RESULTS_RANGE_KEY = "results_range"
-        private const val GROUNDTRUTH_RANGE_KEY = "groundtruth_range"
-        private const val RESULTS_FNS_KEY = "results_fns"
-        private const val GROUNDTRUTH_FNS_KEY = "groundtruth_fns"
+        private const val DCG_KEY = "ndcg_range"
+        private const val RECALL_KEY = "recall_range"
+        private const val RESULTS_KEY = "results_range"
+        private const val GROUNDTRUTH_KEY = "groundtruth_range"
 
         /** List of entities that should be queried. */
         private val ENTITIES = listOf(
@@ -60,7 +56,7 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
         private val PARALLEL = listOf(2, 4, 8, 16, 32)
 
         /** List of index structures that should be used. */
-        private val QUERIES = listOf("Fetch", "Mean", "Range", "FNS")
+        private val QUERIES = listOf("Fetch", "Mean", "Range", "NNS", "Select")
     }
 
     /** Flag that can be used to directly provide confirmation. */
@@ -94,17 +90,14 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
         /* Clear measurements map. */
         this.measurements.clear()
         this.measurements[ENTITY_KEY] = mutableListOf<String>()
+        this.measurements[QUERY_KEY] = mutableListOf<String>()
         this.measurements[INDEX_KEY] = mutableListOf<String>()
         this.measurements[PARALLEL_KEY] =  mutableListOf<Int>()
         this.measurements[K_KEY] = mutableListOf<Int>()
         this.measurements[RUN_KEY] = mutableListOf<Int>()
-        this.measurements[QUERY_KEY] = mutableListOf<String>()
         this.measurements[RUNTIME_KEY] = mutableListOf<Double>()
-        this.measurements[DCG_RANGE_KEY] = mutableListOf<Double>()
-        this.measurements[RECALL_RANGE_KEY] = mutableListOf<Double>()
-        this.measurements[DCG_FNS_KEY] = mutableListOf<Double>()
-        this.measurements[RECALL_FNS_KEY] = mutableListOf<Double>()
-        this.measurements[ENTITY_KEY] = mutableListOf<String>()
+        this.measurements[DCG_KEY] = mutableListOf<Double>()
+        this.measurements[RECALL_KEY] = mutableListOf<Double>()
 
         /* Clear data map. */
         this.data.clear()
@@ -113,10 +106,8 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
         this.data[PARALLEL_KEY] =  mutableListOf<Int>()
         this.data[RUN_KEY] = mutableListOf<Int>()
         this.data[K_KEY] = mutableListOf<Int>()
-        this.data[RESULTS_RANGE_KEY] = mutableListOf<List<String>>()
-        this.data[GROUNDTRUTH_RANGE_KEY] = mutableListOf<List<String>>()
-        this.data[RESULTS_FNS_KEY] = mutableListOf<List<String>>()
-        this.data[GROUNDTRUTH_FNS_KEY] = mutableListOf<List<String>>()
+        this.data[RESULTS_KEY] = mutableListOf<List<String>>()
+        this.data[GROUNDTRUTH_KEY] = mutableListOf<List<String>>()
 
         /* Clear plans map. */
         this.plans.clear()
@@ -185,16 +176,20 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
             val (time2, mean, plan2) = this.executeMeanQuery(entity, queryVector, parallel, indexType)
 
             /* Range search. */
-            val (time3, r1: List<String>, plan3) = this.executeRangeQuery(entity, queryVector, mean, this.k, parallel, indexType)
-            val gt1 = this.executeRangeQuery(entity, queryVector, mean, this.k, parallel).second
+            val (time3, r3: List<String>, plan3) = this.executeRangeQuery(entity, queryVector, mean, this.k, parallel, indexType)
+            val gt3 = this.executeRangeQuery(entity, queryVector, mean, this.k, 1).second
 
-            /* FNS search. */
-            val (time4, r2: List<String>, plan4) = this.executeSelectIn(r1, parallel, indexType)
-            val gt2 = this.executeSelectIn(gt1, parallel).second
+            /* Range search. */
+            val (time4, r4: List<String>, plan4) = this.executeNNSQuery(entity, queryVector, mean, this.k, parallel, indexType)
+            val gt4 = this.executeNNSQuery(entity, queryVector, mean, this.k, 1).second
+
+            /* IN query. */
+            val (time5, r5, plan5) = this.executeSelectIn(r3 + r4, parallel)
+            val gt5 = this.executeSelectIn(r3 + r4, 1).second
 
             /* Record the query execution plans (one) per type of query! */
             if (r == 0) {
-                for ((q,p) in QUERIES.zip(arrayOf(plan1, plan2, plan3, plan4))) {
+                for ((q,p) in QUERIES.zip(arrayOf(plan1, plan2, plan3, plan4, plan5))) {
                     (this.plans[ENTITY_KEY] as MutableList<String>) += entity
                     (this.plans[INDEX_KEY] as MutableList<String>) += indexType ?: "SCAN"
                     (this.plans[QUERY_KEY] as MutableList<String>) += q
@@ -202,20 +197,22 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
                 }
             }
 
-
             /* Record the raw data. */
-            (this.data[ENTITY_KEY] as MutableList<String>) += entity
-            (this.data[INDEX_KEY] as MutableList<String>) += indexType ?: "SCAN"
-            (this.data[PARALLEL_KEY] as MutableList<Int>) += parallel
-            (this.data[RUN_KEY] as MutableList<Int>) += (r + 1)
-            (this.data[RESULTS_RANGE_KEY] as MutableList<List<String>>) += r1
-            (this.data[GROUNDTRUTH_RANGE_KEY] as MutableList<List<String>>) +=  gt1
-            (this.data[RESULTS_FNS_KEY] as MutableList<List<String>>) += r2
-            (this.data[GROUNDTRUTH_FNS_KEY] as MutableList<List<String>>) += gt2
-            (this.data[K_KEY] as MutableList<Int>) += this.k
+            for ((q, data) in QUERIES.zip(arrayOf(emptyList<String>() to emptyList(), emptyList<String>() to emptyList(), r3 to gt3, r4 to gt4, r5 to gt5))) {
+                (this.data[ENTITY_KEY] as MutableList<String>) += entity
+                (this.data[QUERY_KEY] as MutableList<String>) += q
+                (this.data[INDEX_KEY] as MutableList<String>) += indexType ?: "SCAN"
+                (this.data[PARALLEL_KEY] as MutableList<Int>) += parallel
+                (this.data[RUN_KEY] as MutableList<Int>) += (r + 1)
+                (this.data[RESULTS_KEY] as MutableList<List<String>>) += data.first
+                (this.data[GROUNDTRUTH_KEY] as MutableList<List<String>>) +=  data.second
+                (this.data[K_KEY] as MutableList<Int>) += this.k
+            }
 
             /* Record measurements. */
-            for ((q, t) in QUERIES.zip(arrayOf(time1, time2, time3, time4))) {
+            for ((q, t) in QUERIES.zip(arrayOf(time1, time2, time3, time4, time5))) {
+
+                /* Record measurements. */
                 (this.measurements[ENTITY_KEY] as MutableList<String>) += entity
                 (this.measurements[QUERY_KEY] as MutableList<String>) += q
                 (this.measurements[INDEX_KEY] as MutableList<String>) += indexType ?: "SCAN"
@@ -223,10 +220,53 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
                 (this.measurements[RUN_KEY] as MutableList<Int>) += (r + 1)
                 (this.measurements[K_KEY] as MutableList<Int>) += this.k
                 (this.measurements[RUNTIME_KEY] as MutableList<Double>) +=  t / 1000.0
-                (this.measurements[RECALL_RANGE_KEY] as MutableList<Double>) += Measures.recall(gt1, r1)
-                (this.measurements[DCG_RANGE_KEY] as MutableList<Double>) +=  Measures.ndcg(gt1, r1)
-                (this.measurements[RECALL_FNS_KEY] as MutableList<Double>) += Measures.recall(gt2, r2)
-                (this.measurements[DCG_FNS_KEY] as MutableList<Double>) +=  Measures.ndcg(gt2, r2)
+
+                when(q) {
+                    QUERIES[2] -> {
+                        (this.measurements[RECALL_KEY] as MutableList<Double>) += Measures.recall(gt3, r3)
+                        (this.measurements[DCG_KEY] as MutableList<Double>) +=  Measures.ndcg(gt3, r3)
+
+                        /* Record data. */
+                        (this.data[ENTITY_KEY] as MutableList<String>) += entity
+                        (this.data[QUERY_KEY] as MutableList<String>) += q
+                        (this.data[INDEX_KEY] as MutableList<String>) += indexType ?: "SCAN"
+                        (this.data[PARALLEL_KEY] as MutableList<Int>) += parallel
+                        (this.data[RUN_KEY] as MutableList<Int>) += (r + 1)
+                        (this.data[RESULTS_KEY] as MutableList<List<String>>) += r3
+                        (this.data[GROUNDTRUTH_KEY] as MutableList<List<String>>) +=  gt3
+                        (this.data[K_KEY] as MutableList<Int>) += this.k
+                    }
+                    QUERIES[3] -> {
+                        (this.measurements[RECALL_KEY] as MutableList<Double>) += Measures.recall(gt4, r4)
+                        (this.measurements[DCG_KEY] as MutableList<Double>) +=  Measures.ndcg(gt4, r4)
+
+                        /* Record data. */
+                        (this.data[ENTITY_KEY] as MutableList<String>) += entity
+                        (this.data[QUERY_KEY] as MutableList<String>) += q
+                        (this.data[INDEX_KEY] as MutableList<String>) += indexType ?: "SCAN"
+                        (this.data[PARALLEL_KEY] as MutableList<Int>) += parallel
+                        (this.data[RUN_KEY] as MutableList<Int>) += (r + 1)
+                        (this.data[RESULTS_KEY] as MutableList<List<String>>) += r4
+                        (this.data[GROUNDTRUTH_KEY] as MutableList<List<String>>) +=  gt4
+                        (this.data[K_KEY] as MutableList<Int>) += this.k
+                    }
+                    QUERIES[4] -> {
+                        (this.measurements[RECALL_KEY] as MutableList<Double>) += Measures.recall(gt5, r5)
+                        (this.measurements[DCG_KEY] as MutableList<Double>) +=  Measures.ndcg(gt5, r5)
+
+
+                        /* Record data. */
+                        (this.data[ENTITY_KEY] as MutableList<String>) += entity
+                        (this.data[QUERY_KEY] as MutableList<String>) += q
+                        (this.data[INDEX_KEY] as MutableList<String>) += indexType ?: "SCAN"
+                        (this.data[PARALLEL_KEY] as MutableList<Int>) += parallel
+                        (this.data[RUN_KEY] as MutableList<Int>) += (r + 1)
+                        (this.data[RESULTS_KEY] as MutableList<List<String>>) += r5
+                        (this.data[GROUNDTRUTH_KEY] as MutableList<List<String>>) +=  gt5
+                        (this.data[K_KEY] as MutableList<Int>) += this.k
+                    }
+                    else -> { /* No op. */ }
+                }
             }
         }
     }
@@ -279,7 +319,7 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
     }
 
     /**
-     * Executes a farthest neighbour search query.
+     * Executes a range query.
      *
      * @param entity The entity to search.
      * @param queryVector The query vector.
@@ -291,8 +331,8 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
         var query = Query("cineast.${entity}")
             .select("id")
             .distance("feature", queryVector, Distances.L2, "distance")
-            .where(Expression("distance", ">", mean))
-            .order("distance", Direction.DESC)
+            .where(Expression("distance", "BETWEEN", listOf(mean/2, mean)))
+            .order("distance", Direction.ASC)
             .limit(k.toLong())
 
         /* Parametrise. */
@@ -316,7 +356,7 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
     }
 
     /**
-     * Executes a farthest neighbour search query.
+     * Executes a nearest neighbour search query.
      *
      * @param entity The entity to search.
      * @param queryVector The query vector.
@@ -324,9 +364,12 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
      * @param parallel The level of parallelisation.
      * @param indexType The index to use.
      */
-    private fun executeSelectIn(ids: List<String>, parallel: Int, indexType: String? = null): Triple<Long,List<String>,List<String>> {
-        var query = Query("cineast.cineast_segment")
-            .select("*").where(Expression("segmentid", "IN", ids))
+    private fun executeNNSQuery(entity: String, queryVector: FloatArray, mean: Double, k: Int, parallel: Int, indexType: String? = null): Triple<Long,List<String>,List<String>> {
+        var query = Query("cineast.${entity}")
+            .select("id")
+            .distance("feature", queryVector, Distances.L2, "distance")
+            .order("distance", Direction.ASC)
+            .limit(k.toLong())
 
         /* Parametrise. */
         query = query.limitParallelism(parallel)
@@ -335,6 +378,30 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
         } else {
             query.useIndexType(indexType)
         }
+
+        /* Retrieve execution plan. */
+        val plan = ArrayList<String>(this.k)
+        this.client.explain(query).forEach { plan.add(it.asString("comment")!!) }
+
+        /* Retrieve results. */
+        val results = ArrayList<String>(this.k)
+        val time = measureTimeMillis {
+            this.client.query(query).forEach { t -> results.add(t.asString("id")!!) }
+        }
+        return Triple(time, results, plan)
+    }
+
+    /**
+     * Executes a SELECT * FROM cineast.cineast_segment WHERE segmentid IN () query.
+     *
+     * @param parallel The level of parallelisation.
+     */
+    private fun executeSelectIn(ids: List<String>, parallel: Int): Triple<Long,List<String>,List<String>> {
+        val query = Query("cineast.cineast_segment")
+            .select("*")
+            .where(Expression("segmentid", "IN", ids))
+            .limitParallelism(parallel)
+
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
         this.client.explain(query).forEach { plan.add(it.asString("comment")!!) }
