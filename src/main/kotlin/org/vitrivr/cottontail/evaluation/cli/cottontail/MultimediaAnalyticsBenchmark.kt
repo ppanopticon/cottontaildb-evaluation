@@ -186,7 +186,7 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
             val (time3, r3: List<String>, plan3) = this.executeRangeQuery(entity, queryVector, mean, this.k, parallel, indexType)
             val gt3 = this.executeRangeQuery(entity, queryVector, mean, this.k, 1).second
 
-            /* Range search. */
+            /* NNS search. */
             val (time4, r4: List<String>, plan4) = this.executeNNSQuery(entity, queryVector, mean, this.k, parallel, indexType)
             val gt4 = this.executeNNSQuery(entity, queryVector, mean, this.k, 1).second
 
@@ -260,7 +260,10 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
                         (this.data[GROUNDTRUTH_KEY] as MutableList<List<String>>) +=  gt5
                         (this.data[K_KEY] as MutableList<Int>) += this.k
                     }
-                    else -> { /* No op. */ }
+                    else -> {
+                        (this.measurements[RECALL_KEY] as MutableList<Double>) += 1.0
+                        (this.measurements[DCG_KEY] as MutableList<Double>) += 1.0
+                    }
                 }
             }
         }
