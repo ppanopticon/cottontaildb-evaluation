@@ -13,6 +13,7 @@ import org.jline.reader.LineReaderBuilder
 import org.jline.reader.UserInterruptException
 import org.jline.terminal.TerminalBuilder
 import org.vitrivr.cottontail.client.SimpleClient
+import org.vitrivr.cottontail.evaluation.cli.cottontail.CostModelBenchmark
 import org.vitrivr.cottontail.evaluation.cli.cottontail.IndexQualityBenchmarkCommand
 import org.vitrivr.cottontail.evaluation.cli.cottontail.LoadDataCommand
 import org.vitrivr.cottontail.evaluation.cli.cottontail.MultimediaAnalyticsBenchmark
@@ -177,6 +178,7 @@ class Cli(host: String, private val workingDirectory: Path) {
                     LoadDataCommand(this@Cli.cottontail, this@Cli.workingDirectory),
                     IndexQualityBenchmarkCommand(this@Cli.cottontail, this@Cli.workingDirectory),
                     MultimediaAnalyticsBenchmark(this@Cli.cottontail, this@Cli.workingDirectory),
+                    CostModelBenchmark(this@Cli.cottontail, this@Cli.workingDirectory),
                     org.vitrivr.cottontail.evaluation.cli.cottontail.RuntimeBenchmarkCommand(this@Cli.cottontail, this@Cli.workingDirectory)
                 ),
 
