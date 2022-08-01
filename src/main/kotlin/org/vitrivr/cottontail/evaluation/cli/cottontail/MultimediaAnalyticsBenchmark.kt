@@ -25,7 +25,7 @@ import kotlin.system.measureTimeMillis
  * @author Ralph Gasser
  * @version 1.0.0
  */
-class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDirectory: Path): AbstractBenchmarkCommand(workingDirectory, name = "analytics", help = "Prepares and loads all data required for Cottontail DB benchmarks.")  {
+class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDirectory: Path): AbstractBenchmarkCommand(workingDirectory, name = "analytics", help = "Executes to Cottontail DB 'analytics' workload.")  {
     companion object {
         private const val PLAN_KEY = "plan"
         private const val QUERY_KEY = "query"
