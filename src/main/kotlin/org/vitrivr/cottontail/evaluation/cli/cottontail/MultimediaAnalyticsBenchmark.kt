@@ -35,10 +35,10 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
         private const val PARALLEL_KEY = "parallel"
         private const val INDEX_KEY = "index"
         private const val RUNTIME_KEY = "runtime"
-        private const val DCG_KEY = "ndcg_range"
-        private const val RECALL_KEY = "recall_range"
-        private const val RESULTS_KEY = "results_range"
-        private const val GROUNDTRUTH_KEY = "groundtruth_range"
+        private const val DCG_KEY = "ndcg"
+        private const val RECALL_KEY = "recall"
+        private const val RESULTS_KEY = "results"
+        private const val GROUNDTRUTH_KEY = "groundtruth"
 
         /** List of entities that should be queried. */
         private val ENTITIES = listOf(
