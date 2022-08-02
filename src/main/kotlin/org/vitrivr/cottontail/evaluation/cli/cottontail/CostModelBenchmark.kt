@@ -25,10 +25,15 @@ import kotlin.collections.ArrayList
  */
 class CostModelBenchmark(private val client: SimpleClient, workingDirectory: Path): AbstractBenchmarkCommand(workingDirectory, name = "cost", help = "Executes the cost model simulation for Cottontail DB 'analytics' workload.")  {
     companion object {
+        private const val DIGEST_KEY = "digest"
+        private const val SCORE_KEY = "score"
+        private const val RANK_KEY = "rank"
         private const val PLAN_KEY = "plan"
         private const val QUERY_KEY = "query"
         private const val ENTITY_KEY = "entity"
-        private const val WEIGHT_KEY = "weight"
+        private const val CPU_WEIGHT_KEY = "cpu"
+        private const val IO_WEIGHT_KEY = "io"
+        private const val QUALITY_WEIGHT_KEY = "quality"
 
         /** List of entities that should be queried. */
         private val ENTITIES = listOf(
@@ -36,7 +41,7 @@ class CostModelBenchmark(private val client: SimpleClient, workingDirectory: Pat
         )
 
         /** List of index structures that should be used. */
-        private val QUERIES = listOf("Fetch", "Mean", "Range", "NNS", "Select")
+        private val QUERIES = listOf("Mean", "Range", "NNS")
     }
 
     /** Flag that can be used to directly provide confirmation. */
@@ -50,6 +55,9 @@ class CostModelBenchmark(private val client: SimpleClient, workingDirectory: Pat
 
     /** Progress bar used*/
     private var progress: ProgressBar? = null
+
+    /** */
+    private var test: MutableMap<Long,MutableList<Pair<Int,Float>>> = mutableMapOf()
 
     /**
      * Executes the command.
@@ -65,13 +73,18 @@ class CostModelBenchmark(private val client: SimpleClient, workingDirectory: Pat
         this.plans.clear()
         this.plans[ENTITY_KEY] = mutableListOf<String>()
         this.plans[QUERY_KEY] = mutableListOf<String>()
-        this.plans[WEIGHT_KEY] = mutableListOf<Float>()
         this.plans[PLAN_KEY] =  mutableListOf<List<String>>()
+        this.plans[RANK_KEY] =  mutableListOf<List<Int>>()
+        this.plans[SCORE_KEY] =  mutableListOf<List<Float>>()
+        this.plans[DIGEST_KEY] =  mutableListOf<List<Long>>()
+        this.plans[CPU_WEIGHT_KEY] = mutableListOf<Float>()
+        this.plans[IO_WEIGHT_KEY] = mutableListOf<Float>()
+        this.plans[QUALITY_WEIGHT_KEY] = mutableListOf<Float>()
 
         try {
             /* Initialise progress bar. */
             this.progress = ProgressBarBuilder()
-                .setInitialMax((10 * ENTITIES.size).toLong())
+                .setInitialMax((10 * 10 * 10 * ENTITIES.size).toLong())
                 .setStyle(ProgressBarStyle.ASCII).setTaskName("Multimedia Analytics Benchmark:").build()
 
             /* Execute workload. */
@@ -104,30 +117,45 @@ class CostModelBenchmark(private val client: SimpleClient, workingDirectory: Pat
      * @param entity Name of the entity to search.
      */
     private fun executeWorkload(entity: String) {
-        var weight = 0.0f
-        for (r in 0 until 10) {
-            this.progress!!.step()
+        var cpu = 0.0f
+        for (i in 0 until 10) {
+            var io = 0.0f
+            for (j in 0 until 10) {
+                var quality = 0.0f
+                for (k in 0 until 10) {
+                    this.progress!!.step()
 
-            /* Random vector. */
-            val queryVector = this.selectRandomVector(entity)
+                    /* Random vector. */
+                    val queryVector = this.selectRandomVector(entity)
 
-            /* Aggregation. */
-            val plan1 = this.executeMeanQuery(entity, queryVector, weight)
+                    /* Aggregation. */
+                    val plan1 = this.executeMeanQuery(entity, queryVector, cpu, io, quality)
 
-            /* Range search. */
-            val plan2 = this.executeRangeQuery(entity, queryVector, 1.0, this.k, weight)
+                    /* Range search. */
+                    val plan2 = this.executeRangeQuery(entity, queryVector, 1.0, this.k, cpu, io, quality)
 
-            /* NNS search. */
-            val plan3 = this.executeNNSQuery(entity, queryVector, this.k, weight)
+                    /* NNS search. */
+                    val plan3 = this.executeNNSQuery(entity, queryVector, this.k, cpu, io, quality)
 
-            /* Record the query execution plans (one) per type of query! */
-            for ((q,p) in QUERIES.zip(arrayOf(plan1, plan2, plan3))) {
-                (this.plans[ENTITY_KEY] as MutableList<String>) += entity
-                (this.plans[QUERY_KEY] as MutableList<String>) += q
-                (this.plans[WEIGHT_KEY] as MutableList<Float>) += weight
-                (this.plans[PLAN_KEY] as MutableList<List<String>>) += p
+                    /* Record the query execution plans (one) per type of query! */
+                    for ((q,p) in QUERIES.zip(arrayOf(plan1, plan2, plan3))) {
+                        for (l in p.indices) {
+                            (this.plans[ENTITY_KEY] as MutableList<String>) += entity
+                            (this.plans[QUERY_KEY] as MutableList<String>) += q
+                            (this.plans[CPU_WEIGHT_KEY] as MutableList<Float>) += cpu
+                            (this.plans[IO_WEIGHT_KEY] as MutableList<Float>) += io
+                            (this.plans[QUALITY_WEIGHT_KEY] as MutableList<Float>) += quality
+                            (this.plans[DIGEST_KEY] as MutableList<Long>) += p[l].first
+                            (this.plans[PLAN_KEY] as MutableList<String>) += p[l].second
+                            (this.plans[SCORE_KEY] as MutableList<Float>) += p[l].third
+                            (this.plans[RANK_KEY] as MutableList<Int>) += l + 1
+                        }
+                    }
+                    quality += 0.1f
+                }
+                io += 0.1f
             }
-            weight += 0.1f
+            cpu += 0.1f
         }
     }
 
@@ -152,15 +180,24 @@ class CostModelBenchmark(private val client: SimpleClient, workingDirectory: Pat
     /**
      * Executes an NNS query that applies a Boolean filter first.
      */
-    private fun executeMeanQuery(entity: String, feature: FloatArray, qualityWeight: Float): List<String> {
+    private fun executeMeanQuery(entity: String, feature: FloatArray, cpuWeight: Float, ioWeight: Float, qualityWeight: Float): List<Triple<Long,String,Float>> {
         val query = Query("cineast.${entity}")
             .distance("feature", feature, Distances.L2, "distance")
             .mean()
-            .usePolicy(wg = qualityWeight, wcpu = 0.3f, wio = 0.1f, wmem = 0.1f)
+            .usePolicy(wcpu = cpuWeight, wio = ioWeight, wq = qualityWeight, wmem = 0.0f)
+
         /* Retrieve execution plan. */
-        val plan = ArrayList<String>(this.k)
-        this.client.explain(query).forEach { plan.add(it.asString("comment")!!) }
-        return plan
+        val plans = ArrayList<Triple<Long,String,Float>>(this.k)
+        this.client.explain(query).forEach {
+            if (it.asInt("position") == 1) {
+                if (!this.test.containsKey(it.asLong("digest")!!)) {
+                    this.test[it.asLong("digest")!!] = mutableListOf()
+                }
+                plans.add(Triple(it.asLong("digest")!!, it.asString("designation")!!, it.asFloat("score")!!))
+            }
+            println(it)
+        }
+        return plans
     }
 
     /**
@@ -172,21 +209,27 @@ class CostModelBenchmark(private val client: SimpleClient, workingDirectory: Pat
      * @param parallel The level of parallelisation.
      * @param indexType The index to use.
      */
-    private fun executeRangeQuery(entity: String, queryVector: FloatArray, mean: Double, k: Int, qualityWeight: Float): List<String> {
+    private fun executeRangeQuery(entity: String, queryVector: FloatArray, mean: Double, k: Int, cpuWeight: Float, ioWeight: Float, qualityWeight: Float): List<Triple<Long,String,Float>> {
         val query = Query("cineast.${entity}")
             .select("id")
             .distance("feature", queryVector, Distances.L2, "distance")
             .where(Expression("distance", "BETWEEN", listOf(mean/2, mean)))
             .order("distance", Direction.ASC)
             .limit(k.toLong())
-            .usePolicy(wg = qualityWeight, wcpu = 0.3f, wio = 0.1f, wmem = 0.1f)
+            .usePolicy(wcpu = cpuWeight, wio = ioWeight, wq = qualityWeight, wmem = 0.0f)
 
         /* Retrieve execution plan. */
-        val plan = ArrayList<String>(this.k)
-        this.client.explain(query).forEach { plan.add(it.asString("comment")!!) }
-
-        /* Retrieve results. */
-        return plan
+        val plans = ArrayList<Triple<Long,String,Float>>(this.k)
+        this.client.explain(query).forEach {
+            if (it.asInt("position") == 1) {
+                if (!this.test.containsKey(it.asLong("digest")!!)) {
+                    this.test[it.asLong("digest")!!] = mutableListOf()
+                }
+                plans.add(Triple(it.asLong("digest")!!, it.asString("designation")!!, it.asFloat("score")!!))
+            }
+            println(it)
+        }
+        return plans
     }
 
     /**
@@ -197,18 +240,25 @@ class CostModelBenchmark(private val client: SimpleClient, workingDirectory: Pat
      * @param k The level parameter k.
      * @param qualityWeight The weight of the quality cost policy paarameter
      */
-    private fun executeNNSQuery(entity: String, queryVector: FloatArray, k: Int, qualityWeight: Float): List<String> {
+    private fun executeNNSQuery(entity: String, queryVector: FloatArray, k: Int, cpuWeight: Float, ioWeight: Float, qualityWeight: Float): List<Triple<Long,String,Float>> {
         val query = Query("cineast.${entity}")
             .select("id")
             .distance("feature", queryVector, Distances.L2, "distance")
             .order("distance", Direction.ASC)
             .limit(k.toLong())
-            .usePolicy(wg = qualityWeight, wcpu = 0.3f, wio = 0.1f, wmem = 0.1f)
+            .usePolicy(wcpu = cpuWeight, wio = ioWeight, wq = qualityWeight, wmem = 0.0f)
 
         /* Retrieve execution plan. */
-        val plan = ArrayList<String>(this.k)
-        this.client.explain(query).forEach { plan.add(it.asString("comment")!!) }
-
-        return plan
+        val plans = ArrayList<Triple<Long,String,Float>>(this.k)
+        this.client.explain(query).forEach {
+            if (it.asInt("position") == 1) {
+                if (!this.test.containsKey(it.asLong("digest")!!)) {
+                    this.test[it.asLong("digest")!!] = mutableListOf()
+                }
+                plans.add(Triple(it.asLong("digest")!!, it.asString("designation")!!, it.asFloat("score")!!))
+            }
+            println(it)
+        }
+        return plans
     }
 }
