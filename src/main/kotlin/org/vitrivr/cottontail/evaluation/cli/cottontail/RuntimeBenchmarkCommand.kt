@@ -301,7 +301,7 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
 
         val results = ArrayList<String>(k)
         this.client.explain(query).forEach { t ->
-            results.add(t.asString("comment")!!)
+            results.add(t.asString("designation")!!)
         }
         return results
     }
@@ -351,7 +351,7 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
 
         val results = ArrayList<String>(k)
         this.client.explain(query).forEach { t ->
-            results.add(t.asString("comment")!!)
+            results.add(t.asString("designation")!!)
         }
         return results
     }
@@ -403,7 +403,7 @@ class RuntimeBenchmarkCommand(private val client: SimpleClient, workingDirectory
 
         val results = ArrayList<String>(k)
         this.client.explain(query).forEach { t ->
-            results.add(t.asString("comment")!!)
+            results.add(t.asString("designation")!!)
         }
         return results
     }

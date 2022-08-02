@@ -280,7 +280,7 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
 
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
-        this.client.explain(query).forEach { plan.add(it.asString("comment")!!) }
+        this.client.explain(query).forEach { plan.add(it.asString("designation")!!) }
         val queryVector: FloatArray
         val time = measureTimeMillis {
             this.client.query(query).use {
@@ -304,7 +304,7 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
         }
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
-        this.client.explain(query).forEach { plan.add(it.asString("comment")!!) }
+        this.client.explain(query).forEach { plan.add(it.asString("designation")!!) }
 
         /* Retrieve results. */
         val mean: Double
@@ -343,7 +343,7 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
 
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
-        this.client.explain(query).forEach { plan.add(it.asString("comment")!!) }
+        this.client.explain(query).forEach { plan.add(it.asString("designation")!!) }
 
         /* Retrieve results. */
         val results = ArrayList<String>(this.k)
@@ -379,7 +379,7 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
 
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
-        this.client.explain(query).forEach { plan.add(it.asString("comment")!!) }
+        this.client.explain(query).forEach { plan.add(it.asString("designation")!!) }
 
         /* Retrieve results. */
         val results = ArrayList<String>(this.k)
@@ -402,7 +402,7 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
 
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
-        this.client.explain(query).forEach { plan.add(it.asString("comment")!!) }
+        this.client.explain(query).forEach { plan.add(it.asString("designation")!!) }
 
         /* Retrieve results. */
         val results = ArrayList<String>(this.k)
