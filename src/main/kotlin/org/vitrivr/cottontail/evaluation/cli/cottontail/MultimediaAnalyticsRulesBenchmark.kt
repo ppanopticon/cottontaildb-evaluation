@@ -53,7 +53,7 @@ class MultimediaAnalyticsRulesBenchmark (private val client: SimpleClient, worki
         private val INDEXES = listOf(null)
 
         /** List of parallelism levels that should be tested. */
-        private val PARALLEL = listOf(2)
+        private val PARALLEL = listOf(1)
 
         /** List of index structures that should be used. */
         private val QUERIES = listOf("Fetch", "Mean", "Range", "NNS", "Select")
@@ -288,7 +288,11 @@ class MultimediaAnalyticsRulesBenchmark (private val client: SimpleClient, worki
         }
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
-        this.client.explain(query).forEach { plan.add(it.asString("designation")!!) }
+        this.client.explain(query).forEach {
+            if (it.asInt("rank") == 1) {
+                plan.add(it.asString("designation")!!)
+            }
+        }
 
         /* Retrieve results. */
         val mean: Double
@@ -328,7 +332,7 @@ class MultimediaAnalyticsRulesBenchmark (private val client: SimpleClient, worki
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
         this.client.explain(query).forEach {
-            if (it.asInt("position") == 1) {
+            if (it.asInt("rank") == 1) {
                 plan.add(it.asString("designation")!!)
             }
         }
@@ -368,7 +372,7 @@ class MultimediaAnalyticsRulesBenchmark (private val client: SimpleClient, worki
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
         this.client.explain(query).forEach {
-            if (it.asInt("position") == 1) {
+            if (it.asInt("rank") == 1) {
                 plan.add(it.asString("designation")!!)
             }
         }
@@ -395,7 +399,7 @@ class MultimediaAnalyticsRulesBenchmark (private val client: SimpleClient, worki
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
         this.client.explain(query).forEach {
-            if (it.asInt("position") == 1) {
+            if (it.asInt("rank") == 1) {
                 plan.add(it.asString("designation")!!)
             }
         }
