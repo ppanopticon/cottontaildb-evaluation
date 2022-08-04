@@ -269,7 +269,11 @@ class MultimediaAnalyticsRulesBenchmark (private val client: SimpleClient, worki
 
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
-        this.client.explain(query).forEach { plan.add(it.asString("designation")!!) }
+        this.client.explain(query).forEach {
+            if (it.asInt("rank") == 1) {
+                plan.add(it.asString("designation")!!)
+            }
+        }
         val queryVector: FloatArray
         val time = measureTimeMillis {
             this.client.query(query).use {
