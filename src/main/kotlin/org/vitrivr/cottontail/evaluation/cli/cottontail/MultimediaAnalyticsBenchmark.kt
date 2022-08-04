@@ -44,16 +44,16 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
         private val ENTITIES = listOf(
             "features_averagecolor",
             "features_visualtextcoembedding",
-            "features_hogmf25k512",
+            "features_hogmf25k512"/*,
             "features_inceptionresnetv2",
-            "features_conceptmasksade20k"
+            "features_conceptmasksade20k"*/
         )
 
         /** List of index structures that should be used. */
-        private val INDEXES = listOf(null, "PQ", "VAF")
+        private val INDEXES = listOf(null/*, "PQ", "VAF"*/)
 
         /** List of parallelism levels that should be tested. */
-        private val PARALLEL = listOf(2, 4, 8, 16, 32)
+        private val PARALLEL = listOf(2 /*, 4, 8, 16, 32*/)
 
         /** List of index structures that should be used. */
         private val QUERIES = listOf("Fetch", "Mean", "Range", "NNS", "Select")
