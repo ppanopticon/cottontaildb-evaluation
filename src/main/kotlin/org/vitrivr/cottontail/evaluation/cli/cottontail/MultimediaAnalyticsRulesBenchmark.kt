@@ -12,7 +12,6 @@ import org.vitrivr.cottontail.client.language.basics.Direction
 import org.vitrivr.cottontail.client.language.basics.Distances
 import org.vitrivr.cottontail.client.language.basics.predicate.Expression
 import org.vitrivr.cottontail.client.language.dql.Query
-import org.vitrivr.cottontail.evaluation.utilities.Measures
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
@@ -45,7 +44,9 @@ class MultimediaAnalyticsRulesBenchmark (private val client: SimpleClient, worki
         private val ENTITIES = listOf(
             "features_averagecolor",
             "features_visualtextcoembedding",
-            "features_hogmf25k512"
+            "features_hogmf25k512",
+            "features_inceptionresnetv2",
+            "features_conceptmasksade20k"
         )
 
         /** List of index structures that should be used. */
@@ -326,7 +327,11 @@ class MultimediaAnalyticsRulesBenchmark (private val client: SimpleClient, worki
 
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
-        this.client.explain(query).forEach { plan.add(it.asString("designation")!!) }
+        this.client.explain(query).forEach {
+            if (it.asInt("position") == 1) {
+                plan.add(it.asString("designation")!!)
+            }
+        }
 
         /* Retrieve results. */
         val results = ArrayList<String>(this.k)
@@ -362,7 +367,11 @@ class MultimediaAnalyticsRulesBenchmark (private val client: SimpleClient, worki
 
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
-        this.client.explain(query).forEach { plan.add(it.asString("designation")!!) }
+        this.client.explain(query).forEach {
+            if (it.asInt("position") == 1) {
+                plan.add(it.asString("designation")!!)
+            }
+        }
 
         /* Retrieve results. */
         val results = ArrayList<String>(this.k)
@@ -385,7 +394,11 @@ class MultimediaAnalyticsRulesBenchmark (private val client: SimpleClient, worki
 
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
-        this.client.explain(query).forEach { plan.add(it.asString("designation")!!) }
+        this.client.explain(query).forEach {
+            if (it.asInt("position") == 1) {
+                plan.add(it.asString("designation")!!)
+            }
+        }
 
         /* Retrieve results. */
         val results = ArrayList<String>(this.k)
