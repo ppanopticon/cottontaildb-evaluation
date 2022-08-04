@@ -260,7 +260,12 @@ class MultimediaAnalyticsRulesBenchmark (private val client: SimpleClient, worki
      */
     private fun selectRandomVector(entity: String): Triple<Long,FloatArray,List<String>> {
         val skip = this.random.nextInt(2000000)
-        val query = Query("cineast.${entity}").select("feature").skip(skip.toLong()).limit(1)
+        val query = Query("cineast.${entity}")
+            .select("feature")
+            .skip(skip.toLong())
+            .limit(1)
+            .disallowParallelism()
+            .disallowIndex()
 
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
@@ -279,13 +284,12 @@ class MultimediaAnalyticsRulesBenchmark (private val client: SimpleClient, worki
      * Executes an NNS query that applies a Boolean filter first.
      */
     private fun executeMeanQuery(entity: String, feature: FloatArray, parallel: Int, indexType: String? = null): Triple<Long,Double,List<String>> {
-        var query = Query("cineast.${entity}").distance("feature", feature, Distances.L2, "distance").mean()
-        query = query.limitParallelism(parallel)
-        if (indexType == null) {
-            query.disallowIndex()
-        } else {
-            query.useIndexType(indexType)
-        }
+        val query = Query("cineast.${entity}")
+            .distance("feature", feature, Distances.L2, "distance")
+            .mean()
+            .disallowParallelism()
+            .disallowIndex()
+
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
         this.client.explain(query).forEach {
@@ -314,20 +318,14 @@ class MultimediaAnalyticsRulesBenchmark (private val client: SimpleClient, worki
      * @param indexType The index to use.
      */
     private fun executeRangeQuery(entity: String, queryVector: FloatArray, mean: Double, k: Int, parallel: Int, indexType: String? = null): Triple<Long,List<String>,List<String>> {
-        var query = Query("cineast.${entity}")
+        val query = Query("cineast.${entity}")
             .select("id")
             .distance("feature", queryVector, Distances.L2, "distance")
             .where(Expression("distance", "BETWEEN", listOf(mean/2, mean)))
             .order("distance", Direction.ASC)
             .limit(k.toLong())
-
-        /* Parametrise. */
-        query = query.limitParallelism(parallel)
-        if (indexType == null) {
-            query.disallowIndex()
-        } else {
-            query.useIndexType(indexType)
-        }
+            .disallowParallelism()
+            .disallowIndex()
 
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
@@ -355,20 +353,13 @@ class MultimediaAnalyticsRulesBenchmark (private val client: SimpleClient, worki
      * @param indexType The index to use.
      */
     private fun executeNNSQuery(entity: String, queryVector: FloatArray, mean: Double, k: Int, parallel: Int, indexType: String? = null): Triple<Long,List<String>,List<String>> {
-        var query = Query("cineast.${entity}")
+        val query = Query("cineast.${entity}")
             .select("id")
             .distance("feature", queryVector, Distances.L2, "distance")
             .order("distance", Direction.ASC)
             .limit(k.toLong())
-
-        /* Parametrise. */
-        query = query.limitParallelism(parallel)
-        if (indexType == null) {
-            query.disallowIndex()
-        } else {
-            query.useIndexType(indexType)
-        }
-
+            .disallowParallelism()
+            .disallowIndex()
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
         this.client.explain(query).forEach {
@@ -395,6 +386,8 @@ class MultimediaAnalyticsRulesBenchmark (private val client: SimpleClient, worki
             .select("*")
             .where(Expression("segmentid", "IN", ids))
             .limitParallelism(parallel)
+            .disallowParallelism()
+            .disallowIndex()
 
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
