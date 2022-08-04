@@ -21,12 +21,12 @@ import kotlin.collections.ArrayList
 import kotlin.system.measureTimeMillis
 
 /**
- * An simulated "analytics workload" used to benchmark Cottontail DB.
+ * A variant of the analytics benchmarks w/o certain planner rules used to benchmark Cottontail DB.
  *
  * @author Ralph Gasser
  * @version 1.0.0
  */
-class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDirectory: Path): AbstractBenchmarkCommand(workingDirectory, name = "analytics", help = "Executes to Cottontail DB 'analytics' workload.")  {
+class MultimediaAnalyticsRulesBenchmark (private val client: SimpleClient, workingDirectory: Path): AbstractBenchmarkCommand(workingDirectory, name = "analytics-rules", help = "Executes to Cottontail DB 'analytics' workload.")  {
     companion object {
         private const val PLAN_KEY = "plan"
         private const val QUERY_KEY = "query"
@@ -45,16 +45,14 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
         private val ENTITIES = listOf(
             "features_averagecolor",
             "features_visualtextcoembedding",
-            "features_hogmf25k512",
-            "features_inceptionresnetv2",
-            "features_conceptmasksade20k"
+            "features_hogmf25k512"
         )
 
         /** List of index structures that should be used. */
-        private val INDEXES = listOf(null, "PQ", "VAF")
+        private val INDEXES = listOf(null)
 
         /** List of parallelism levels that should be tested. */
-        private val PARALLEL = listOf(2, 4, 8, 16, 32)
+        private val PARALLEL = listOf(2)
 
         /** List of index structures that should be used. */
         private val QUERIES = listOf("Fetch", "Mean", "Range", "NNS", "Select")
@@ -185,15 +183,12 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
 
             /* Range search. */
             val (time3, r3: List<String>, plan3) = this.executeRangeQuery(entity, queryVector, mean, this.k, parallel, indexType)
-            val gt3 = this.executeRangeQuery(entity, queryVector, mean, this.k, 1).second
 
             /* NNS search. */
             val (time4, r4: List<String>, plan4) = this.executeNNSQuery(entity, queryVector, mean, this.k, parallel, indexType)
-            val gt4 = this.executeNNSQuery(entity, queryVector, mean, this.k, 1).second
 
             /* IN query. */
             val (time5, r5, plan5) = this.executeSelectIn(r3 + r4, parallel)
-            val gt5 = this.executeSelectIn(r3 + r4, 1).second
 
             /* Record the query execution plans (one) per type of query! */
             if (r == 0) {
@@ -219,9 +214,6 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
 
                 when(q) {
                     QUERIES[2] -> {
-                        (this.measurements[RECALL_KEY] as MutableList<Double>) += Measures.recall(gt3, r3)
-                        (this.measurements[DCG_KEY] as MutableList<Double>) +=  Measures.ndcg(gt3, r3)
-
                         /* Record data. */
                         (this.data[ENTITY_KEY] as MutableList<String>) += entity
                         (this.data[QUERY_KEY] as MutableList<String>) += q
@@ -229,13 +221,9 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
                         (this.data[PARALLEL_KEY] as MutableList<Int>) += parallel
                         (this.data[RUN_KEY] as MutableList<Int>) += (r + 1)
                         (this.data[RESULTS_KEY] as MutableList<List<String>>) += r3
-                        (this.data[GROUNDTRUTH_KEY] as MutableList<List<String>>) +=  gt3
                         (this.data[K_KEY] as MutableList<Int>) += this.k
                     }
                     QUERIES[3] -> {
-                        (this.measurements[RECALL_KEY] as MutableList<Double>) += Measures.recall(gt4, r4)
-                        (this.measurements[DCG_KEY] as MutableList<Double>) +=  Measures.ndcg(gt4, r4)
-
                         /* Record data. */
                         (this.data[ENTITY_KEY] as MutableList<String>) += entity
                         (this.data[QUERY_KEY] as MutableList<String>) += q
@@ -243,14 +231,9 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
                         (this.data[PARALLEL_KEY] as MutableList<Int>) += parallel
                         (this.data[RUN_KEY] as MutableList<Int>) += (r + 1)
                         (this.data[RESULTS_KEY] as MutableList<List<String>>) += r4
-                        (this.data[GROUNDTRUTH_KEY] as MutableList<List<String>>) +=  gt4
                         (this.data[K_KEY] as MutableList<Int>) += this.k
                     }
                     QUERIES[4] -> {
-                        (this.measurements[RECALL_KEY] as MutableList<Double>) += Measures.recall(gt5, r5)
-                        (this.measurements[DCG_KEY] as MutableList<Double>) +=  Measures.ndcg(gt5, r5)
-
-
                         /* Record data. */
                         (this.data[ENTITY_KEY] as MutableList<String>) += entity
                         (this.data[QUERY_KEY] as MutableList<String>) += q
@@ -258,7 +241,6 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
                         (this.data[PARALLEL_KEY] as MutableList<Int>) += parallel
                         (this.data[RUN_KEY] as MutableList<Int>) += (r + 1)
                         (this.data[RESULTS_KEY] as MutableList<List<String>>) += r5
-                        (this.data[GROUNDTRUTH_KEY] as MutableList<List<String>>) +=  gt5
                         (this.data[K_KEY] as MutableList<Int>) += this.k
                     }
                     else -> {
