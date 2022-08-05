@@ -25,7 +25,7 @@ import kotlin.system.measureTimeMillis
  * @author Ralph Gasser
  * @version 1.0.0
  */
-class MultimediaAnalyticsRulesBenchmark (private val client: SimpleClient, workingDirectory: Path): AbstractBenchmarkCommand(workingDirectory, name = "analytics-rules", help = "Executes to Cottontail DB 'analytics' workload.")  {
+class MultimediaAnalyticsNoOptBenchmark (private val client: SimpleClient, workingDirectory: Path): AbstractBenchmarkCommand(workingDirectory, name = "analytics-noopt", help = "Executes to Cottontail DB 'analytics' workload without optimisation.")  {
     companion object {
         private const val PLAN_KEY = "plan"
         private const val QUERY_KEY = "query"
@@ -48,9 +48,6 @@ class MultimediaAnalyticsRulesBenchmark (private val client: SimpleClient, worki
             "features_inceptionresnetv2",
             "features_conceptmasksade20k"
         )
-
-        /** List of index structures that should be used. */
-        private val INDEXES = listOf(null)
 
         /** List of parallelism levels that should be tested. */
         private val PARALLEL = listOf(1)
@@ -121,16 +118,12 @@ class MultimediaAnalyticsRulesBenchmark (private val client: SimpleClient, worki
         try {
             /* Initialise progress bar. */
             this.progress = ProgressBarBuilder()
-                .setInitialMax((ENTITIES.size  * INDEXES.size * PARALLEL.size * this.repeat).toLong())
+                .setInitialMax((ENTITIES.size * this.repeat).toLong())
                 .setStyle(ProgressBarStyle.ASCII).setTaskName("Multimedia Analytics Benchmark:").build()
 
             /* Execute workload. */
             for (entity in ENTITIES) {
-                for (index in INDEXES) {
-                    for (p in PARALLEL) {
-                        executeWorkload(entity, p, index)
-                    }
-                }
+                executeWorkload(entity, 1, null)
             }
         } finally {
             this.export(out)
@@ -265,7 +258,7 @@ class MultimediaAnalyticsRulesBenchmark (private val client: SimpleClient, worki
             .skip(skip.toLong())
             .limit(1)
             .disallowParallelism()
-            .disallowIndex()
+            .disallowOptimisation()
 
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
@@ -292,7 +285,7 @@ class MultimediaAnalyticsRulesBenchmark (private val client: SimpleClient, worki
             .distance("feature", feature, Distances.L2, "distance")
             .mean()
             .disallowParallelism()
-            .disallowIndex()
+            .disallowOptimisation()
 
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
@@ -329,7 +322,8 @@ class MultimediaAnalyticsRulesBenchmark (private val client: SimpleClient, worki
             .order("distance", Direction.ASC)
             .limit(k.toLong())
             .disallowParallelism()
-            .disallowIndex()
+            .disallowOptimisation()
+
 
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
@@ -363,7 +357,8 @@ class MultimediaAnalyticsRulesBenchmark (private val client: SimpleClient, worki
             .order("distance", Direction.ASC)
             .limit(k.toLong())
             .disallowParallelism()
-            .disallowIndex()
+            .disallowOptimisation()
+
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
         this.client.explain(query).forEach {
@@ -391,7 +386,7 @@ class MultimediaAnalyticsRulesBenchmark (private val client: SimpleClient, worki
             .where(Expression("segmentid", "IN", ids))
             .limitParallelism(parallel)
             .disallowParallelism()
-            .disallowIndex()
+            .disallowOptimisation()
 
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)

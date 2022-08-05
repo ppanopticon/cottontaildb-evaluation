@@ -175,7 +175,7 @@ class Cli(host: String, private val workingDirectory: Path) {
                     LoadDataCommand(this@Cli.cottontail, this@Cli.workingDirectory),
                     IndexQualityBenchmarkCommand(this@Cli.cottontail, this@Cli.workingDirectory),
                     MultimediaAnalyticsBenchmark(this@Cli.cottontail, this@Cli.workingDirectory),
-                    MultimediaAnalyticsRulesBenchmark(this@Cli.cottontail, this@Cli.workingDirectory),
+                    MultimediaAnalyticsNoOptBenchmark(this@Cli.cottontail, this@Cli.workingDirectory),
                     CostModelBenchmark(this@Cli.cottontail, this@Cli.workingDirectory),
                     org.vitrivr.cottontail.evaluation.cli.cottontail.RuntimeBenchmarkCommand(this@Cli.cottontail, this@Cli.workingDirectory)
                 ),
