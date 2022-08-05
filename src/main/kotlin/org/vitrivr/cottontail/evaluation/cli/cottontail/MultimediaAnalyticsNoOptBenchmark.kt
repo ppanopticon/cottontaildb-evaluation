@@ -288,11 +288,16 @@ class MultimediaAnalyticsNoOptBenchmark (private val client: SimpleClient, worki
      * Executes an NNS query that applies a Boolean filter first.
      */
     private fun executeMeanQuery(entity: String, feature: FloatArray, parallel: Int, indexType: String? = null): Triple<Long,Double,List<String>> {
-        val query = Query("cineast.${entity}")
+        var query = Query("cineast.${entity}")
             .distance("feature", feature, Distances.L2, "distance")
             .mean()
             .disallowParallelism()
-            .disallowOptimisation()
+
+        query = if (!this.optimise) {
+            query.disallowOptimisation()
+        } else {
+            query.disallowIndex()
+        }
 
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
@@ -330,8 +335,10 @@ class MultimediaAnalyticsNoOptBenchmark (private val client: SimpleClient, worki
             .limit(k.toLong())
             .disallowParallelism()
 
-        if (!this.optimise) {
-            query = query.disallowOptimisation()
+        query = if (!this.optimise) {
+            query.disallowOptimisation()
+        } else {
+            query.disallowIndex()
         }
 
         /* Retrieve execution plan. */
@@ -367,8 +374,10 @@ class MultimediaAnalyticsNoOptBenchmark (private val client: SimpleClient, worki
             .limit(k.toLong())
             .disallowParallelism()
 
-        if (!this.optimise) {
-            query = query.disallowOptimisation()
+        query = if (!this.optimise) {
+            query.disallowOptimisation()
+        } else {
+            query.disallowIndex()
         }
 
         /* Retrieve execution plan. */
@@ -399,8 +408,10 @@ class MultimediaAnalyticsNoOptBenchmark (private val client: SimpleClient, worki
             .limitParallelism(parallel)
             .disallowParallelism()
 
-        if (!this.optimise) {
-            query = query.disallowOptimisation()
+        query = if (!this.optimise) {
+            query.disallowOptimisation()
+        } else {
+            query.disallowIndex()
         }
 
         /* Retrieve execution plan. */
