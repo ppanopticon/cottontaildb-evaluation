@@ -26,7 +26,7 @@ import kotlin.system.measureTimeMillis
  * @author Ralph Gasser
  * @version 1.0.0
  */
-class MultimediaAnalyticsNoOptBenchmark (private val client: SimpleClient, workingDirectory: Path): AbstractBenchmarkCommand(workingDirectory, name = "analytics-noopt", help = "Executes to Cottontail DB 'analytics' workload without optimisation.")  {
+class MultimediaAnalyticsNoOptBenchmark (private val client: SimpleClient, workingDirectory: Path): AbstractBenchmarkCommand(workingDirectory, name = "optimisation", help = "Executes to Cottontail DB 'analytics' workload without optimisation.")  {
     companion object {
         private const val PLAN_KEY = "plan"
         private const val QUERY_KEY = "query"
@@ -61,7 +61,7 @@ class MultimediaAnalyticsNoOptBenchmark (private val client: SimpleClient, worki
     private val k: Int by option("-k", "--k", help = "If set, then only the output will be plot.").int().default(1000)
 
     /** Flag that can be used to directly provide confirmation. */
-    private val optimise: Boolean by option("-o", "--op", help = "If set, then only the output will be plot.").flag("--no-op", "-O", default = true)
+    private val optimise: Boolean by option("-o", "--opt", help = "If set, then only the output will be plot.").flag("--no-opt", "-n", default = true)
 
     /** A [SplittableRandom] to generate categories. */
     private val random = SplittableRandom()
