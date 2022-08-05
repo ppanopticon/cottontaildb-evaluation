@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.evaluation.cli.cottontail
 
 import com.github.ajalt.clikt.parameters.options.default
+import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.int
 import com.google.gson.GsonBuilder
@@ -58,6 +59,9 @@ class MultimediaAnalyticsNoOptBenchmark (private val client: SimpleClient, worki
 
     /** Flag that can be used to directly provide confirmation. */
     private val k: Int by option("-k", "--k", help = "If set, then only the output will be plot.").int().default(1000)
+
+    /** Flag that can be used to directly provide confirmation. */
+    private val optimise: Boolean by option("-o", "--op", help = "If set, then only the output will be plot.").flag("--no-op", "-O", default = true)
 
     /** A [SplittableRandom] to generate categories. */
     private val random = SplittableRandom()
@@ -253,12 +257,15 @@ class MultimediaAnalyticsNoOptBenchmark (private val client: SimpleClient, worki
      */
     private fun selectRandomVector(entity: String): Triple<Long,FloatArray,List<String>> {
         val skip = this.random.nextInt(2000000)
-        val query = Query("cineast.${entity}")
+        var query = Query("cineast.${entity}")
             .select("feature")
             .skip(skip.toLong())
             .limit(1)
             .disallowParallelism()
-            .disallowOptimisation()
+
+        if (!this.optimise) {
+            query = query.disallowOptimisation()
+        }
 
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
@@ -315,15 +322,17 @@ class MultimediaAnalyticsNoOptBenchmark (private val client: SimpleClient, worki
      * @param indexType The index to use.
      */
     private fun executeRangeQuery(entity: String, queryVector: FloatArray, mean: Double, k: Int, parallel: Int, indexType: String? = null): Triple<Long,List<String>,List<String>> {
-        val query = Query("cineast.${entity}")
+        var query = Query("cineast.${entity}")
             .select("id")
             .distance("feature", queryVector, Distances.L2, "distance")
             .where(Expression("distance", "BETWEEN", listOf(mean/2, mean)))
             .order("distance", Direction.ASC)
             .limit(k.toLong())
             .disallowParallelism()
-            .disallowOptimisation()
 
+        if (!this.optimise) {
+            query = query.disallowOptimisation()
+        }
 
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
@@ -351,13 +360,16 @@ class MultimediaAnalyticsNoOptBenchmark (private val client: SimpleClient, worki
      * @param indexType The index to use.
      */
     private fun executeNNSQuery(entity: String, queryVector: FloatArray, mean: Double, k: Int, parallel: Int, indexType: String? = null): Triple<Long,List<String>,List<String>> {
-        val query = Query("cineast.${entity}")
+        var query = Query("cineast.${entity}")
             .select("id")
             .distance("feature", queryVector, Distances.L2, "distance")
             .order("distance", Direction.ASC)
             .limit(k.toLong())
             .disallowParallelism()
-            .disallowOptimisation()
+
+        if (!this.optimise) {
+            query = query.disallowOptimisation()
+        }
 
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
@@ -381,12 +393,15 @@ class MultimediaAnalyticsNoOptBenchmark (private val client: SimpleClient, worki
      * @param parallel The level of parallelisation.
      */
     private fun executeSelectIn(ids: List<String>, parallel: Int): Triple<Long,List<String>,List<String>> {
-        val query = Query("cineast.cineast_segment")
+        var query = Query("cineast.cineast_segment")
             .select("*")
             .where(Expression("segmentid", "IN", ids))
             .limitParallelism(parallel)
             .disallowParallelism()
-            .disallowOptimisation()
+
+        if (!this.optimise) {
+            query = query.disallowOptimisation()
+        }
 
         /* Retrieve execution plan. */
         val plan = ArrayList<String>(this.k)
