@@ -122,7 +122,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
 
         try {
             /* Open dataset. */
-            this.data = YandexDeep1BIterator(this.workingDirectory.resolve("datasets/yandex-deep1b/query.public.10K.fbin"))
+            this.data = YandexDeep1BIterator(this.workingDirectory.resolve("datasets/yandex-deep1b/base.1B.fbin"))
 
             /* Prepare data collection. */
             this.prepare()
