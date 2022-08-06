@@ -115,6 +115,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         this.measurements.clear()
         this.measurements[TIME_KEY] = mutableListOf<Long>()
         this.measurements[INSERTS_KEY] = mutableListOf<Int>()
+        this.measurements[COUNT_KEY] = mutableListOf<Long>()
         this.measurements[DELETES_KEY] = mutableListOf<Int>()
         this.measurements[RUNTIME_KEY] = mutableListOf<Double>()
         this.measurements[DCG_KEY] = mutableListOf<Double>()
@@ -122,7 +123,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
 
         try {
             /* Open dataset. */
-            this.data = YandexDeep1BIterator(this.workingDirectory.resolve("datasets/yandex-deep1b/base.1B.fbin"))
+            this.data = YandexDeep1BIterator(this.workingDirectory.resolve("datasets/yandex-deep1b/query.public.10K.fbin"))
 
             /* Prepare data collection. */
             this.prepare()
@@ -133,14 +134,15 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
             runBlocking {
                 /* Launch write jobs. */
                 val jobs = (0 until this@IndexAdaptivenessBenchmark.threads).map {
-                    launch {
-                        withContext(Dispatchers.IO) {
-                            while (running) {
-                                this@IndexAdaptivenessBenchmark.insertOrDelete(mutex)
-                            }
+                    launch(Dispatchers.IO) {
+                        while (running) {
+                            this@IndexAdaptivenessBenchmark.insertOrDelete(mutex)
                         }
                     }
                 }
+
+                /* Wait 3 seconds / give insert jobs a little headstart. */
+                delay(3000)
 
                 /* Run benchmark. */
                 this@IndexAdaptivenessBenchmark.benchmark()
@@ -149,7 +151,9 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                 /* Cancel inserts. */
                 jobs.forEach { it.join() }
             }
-        } finally {
+        } catch (e: Throwable) {
+            println("An error has occurred: ${e.message}")
+        } finally{
             this.data?.close()
             this.data = null
 
@@ -183,21 +187,21 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         if (execute) {
             val doInsert = this.random.nextBoolean()
             if (doInsert) {
-                val insertCount = this.random.nextInt(1, 10)
+                val insertCount = this.random.nextInt(1, 100)
                 val data = mutex.withLock {
                     (0 until insertCount).map { this.data!!.next() }.toList()
                 }
                 val insert = BatchInsert(TEST_ENTITY_NAME).columns("id", "feature")
                 for ((id, feature) in data) {
                     insert.append(id, feature)
-                    if (this@IndexAdaptivenessBenchmark.queue.isEmpty() && this.random.nextBoolean()) {
+                    if (this.random.nextBoolean()) {
                         this@IndexAdaptivenessBenchmark.queue.offer(feature, 100, TimeUnit.MILLISECONDS)
                     }
                 }
                 this.client.insert(insert)
                 this.insertsExecuted.addAndGet(insertCount)
             } else {
-                val delete = Delete("evaluation.yandex_deep1b").where(Expression("id", "=", this.random.nextInt(1, this.maxId.get())))
+                val delete = Delete(TEST_ENTITY_NAME).where(Expression("id", "=", this.random.nextInt(1, this.maxId.get())))
                 this.client.delete(delete)
                 this.deletesExecuted.incrementAndGet()
             }
@@ -208,12 +212,11 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         return execute
     }
 
-
     /**
      * Runs the benchmark.
      */
     @OptIn(ExperimentalTime::class)
-    private fun benchmark() {
+    private suspend fun benchmark() {
         val progress = ProgressBarBuilder().setStyle(ProgressBarStyle.ASCII).setInitialMax(this.duration.toLong()).setTaskName("Index Adaptiveness Benchmark (Prepare):").build()
         val timer = TimeSource.Monotonic.markNow().plus(this.duration.seconds)
         do {
@@ -222,8 +225,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
             val query = this.queue.poll(5, TimeUnit.SECONDS)
 
             if (query != null) {
-                val (duration, results) = this.executeNNSQuery(query, this.index.toString())
-                val (_, gt) = this.executeNNSQuery(query, null)
+                val (duration, results, gt) = this.executeNNSQuery(query, this.index.toString())
 
                 /* Record measurements. */
                 (this.measurements[TIME_KEY] as MutableList<Long>).add(timestamp)
@@ -234,9 +236,10 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                 (this.measurements[DCG_KEY] as MutableList<Double>).add(Measures.ndcg(results, gt))
                 (this.measurements[RECALL_KEY] as MutableList<Double>).add(Measures.recall(results, gt))
             }
+
+            delay(this.random.nextLong(10, 1000))
         } while (timer.hasNotPassedNow())
     }
-
 
     /**
      * Executes a nearest neighbour search query.
@@ -244,7 +247,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
      */
     private fun count(): Long {
         val query = Query(TEST_ENTITY_NAME).select("*").count()
-        return this.client.query(query).next().asLong("count")!!
+        return this.client.query(query).next().asLong("count(*)")!!
     }
 
     /**
@@ -253,25 +256,24 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
      * @param queryVector The query vector.
      * @param indexType The index to use.
      */
-    private fun executeNNSQuery(queryVector: FloatArray, indexType: String? = null): Pair<Long,List<Int>> {
-        var query = Query(TEST_ENTITY_NAME)
-            .select("id")
-            .distance("feature", queryVector, Distances.L2, "distance")
-            .order("distance", Direction.ASC)
-            .limit(1000)
+    private fun executeNNSQuery(queryVector: FloatArray, indexType: String): Triple<Long,List<Int>,List<Int>> {
+        try {
+            val query = Query(TEST_ENTITY_NAME)
+                .select("id")
+                .distance("feature", queryVector, Distances.L2, "distance")
+                .order("distance", Direction.ASC)
+                .limit(1000)
+            /* Retrieve results. */
+            val results = ArrayList<Int>(1000)
+            val gt = ArrayList<Int>(1000)
+            val time = measureTimeMillis {
+                this.client.query(query.useIndexType(indexType)).forEach { t -> results.add(t.asInt("id")!!) }
+            }
+            this.client.query(query.disallowIndex()).forEach { t -> gt.add(t.asInt("id")!!) }
 
-        if (indexType == null) {
-            query = query.disallowIndex()
-        } else {
-            query = query.useIndexType(indexType)
-        }
 
-        /* Retrieve results. */
-        val results = ArrayList<Int>(1000)
-        val time = measureTimeMillis {
-            this.client.query(query).forEach { t -> results.add(t.asInt("id")!!) }
-        }
-        return time to results
+            return Triple(time, results, gt)
+        } finally { }
     }
 
     /**
