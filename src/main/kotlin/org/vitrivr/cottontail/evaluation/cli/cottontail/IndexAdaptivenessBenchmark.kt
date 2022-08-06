@@ -134,8 +134,10 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                 /* Launch write jobs. */
                 val jobs = (0 until this@IndexAdaptivenessBenchmark.threads).map {
                     launch {
-                        while (running) {
-                            this@IndexAdaptivenessBenchmark.insertOrDelete(mutex)
+                        withContext(Dispatchers.IO) {
+                            while (running) {
+                                this@IndexAdaptivenessBenchmark.insertOrDelete(mutex)
+                            }
                         }
                     }
                 }
@@ -185,7 +187,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                 val data = mutex.withLock {
                     (0 until insertCount).map { this.data!!.next() }.toList()
                 }
-                val insert = BatchInsert("evaluation.yandex_deep1b").columns("id", "feature")
+                val insert = BatchInsert(TEST_ENTITY_NAME).columns("id", "feature")
                 for ((id, feature) in data) {
                     insert.append(id, feature)
                     if (this@IndexAdaptivenessBenchmark.queue.isEmpty() && this.random.nextBoolean()) {
@@ -298,7 +300,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
 
         /** Load data. */
         val progress = ProgressBarBuilder().setStyle(ProgressBarStyle.ASCII).setInitialMax(this.size.toLong()).setTaskName("Index Adaptiveness Benchmark (Prepare):").build()
-        var insert = BatchInsert("evaluation.yandex_deep1b").columns("id", "feature")
+        var insert = BatchInsert(TEST_ENTITY_NAME).columns("id", "feature")
         var txId = this.client.begin()
         try {
             repeat(this.size) {
