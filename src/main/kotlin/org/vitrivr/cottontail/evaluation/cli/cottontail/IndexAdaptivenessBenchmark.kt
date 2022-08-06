@@ -218,7 +218,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         val timer = TimeSource.Monotonic.markNow().plus(this.duration.seconds)
         do {
             val timestamp = timer.elapsedNow().absoluteValue.inWholeSeconds
-            progress.stepTo(timestamp)
+            progress.stepTo(this.duration - timestamp)
             val query = this.queue.poll(5, TimeUnit.SECONDS)
 
             if (query != null) {
