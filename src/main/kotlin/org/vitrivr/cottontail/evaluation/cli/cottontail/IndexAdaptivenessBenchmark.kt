@@ -46,9 +46,7 @@ import kotlin.time.TimeSource
  * @author Ralph Gasser
  * @version 1.0
  */
-class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirectory: Path): AbstractBenchmarkCommand(workingDirectory, name = "index", help = "Prepares and executes an index benchmark test.")  {
-
-
+class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirectory: Path): AbstractBenchmarkCommand(workingDirectory, name = "index-adaptiveness", help = "Prepares and executes an index benchmark test.")  {
 
     companion object {
         const val TEST_ENTITY_NAME = "evaluation.yandex_adaptive_test"
