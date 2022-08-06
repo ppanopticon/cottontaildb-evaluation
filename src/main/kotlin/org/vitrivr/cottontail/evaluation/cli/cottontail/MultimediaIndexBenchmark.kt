@@ -126,7 +126,12 @@ class MultimediaIndexBenchmark(private val client: SimpleClient, workingDirector
      * @param indexType The index type to use.
      */
     private fun executeWorkload(entity: String, parallel: Int, indexType: String? = null) {
-        /** */
+
+        /* Warmup. */
+        val qv= this.selectRandomVector(entity)
+        val res = this.executeNNSQuery(entity, qv.second, this.k, parallel, indexType)
+
+        /** Experiment. */
         for (r in 0 until this.repeat) {
             this.progress!!.step()
 
