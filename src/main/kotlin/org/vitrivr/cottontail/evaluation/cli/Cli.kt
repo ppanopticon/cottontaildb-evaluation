@@ -174,6 +174,7 @@ class Cli(host: String, private val workingDirectory: Path) {
                     }
                 }.subcommands(
                     LoadDataCommand(this@Cli.cottontail, this@Cli.workingDirectory),
+                    IndexAdaptivenessBenchmark(this@Cli.cottontail, this@Cli.workingDirectory),
                     IndexQualityBenchmarkCommand(this@Cli.cottontail, this@Cli.workingDirectory),
                     MultimediaAnalyticsBenchmark(this@Cli.cottontail, this@Cli.workingDirectory),
                     MultimediaAnalyticsNoOptBenchmark(this@Cli.cottontail, this@Cli.workingDirectory),
