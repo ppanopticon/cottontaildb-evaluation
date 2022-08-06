@@ -319,7 +319,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                 /* Append insert. */
                 if (!insert.append(id, vector)) {
                     this.client.insert(insert.txId(txId))
-                    insert = BatchInsert("evaluation.yandex_deep1b").columns("id", "feature")
+                    insert = BatchInsert(TEST_ENTITY_NAME).columns("id", "feature")
                     insert.append(id, vector)
                 }
                 progress.step()
