@@ -20,9 +20,10 @@ import java.util.regex.Pattern
 
 
 /**
+ * THE [Cli]
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.0
  */
 class Cli(host: String, private val workingDirectory: Path) {
 
@@ -177,7 +178,8 @@ class Cli(host: String, private val workingDirectory: Path) {
                     MultimediaAnalyticsBenchmark(this@Cli.cottontail, this@Cli.workingDirectory),
                     MultimediaAnalyticsNoOptBenchmark(this@Cli.cottontail, this@Cli.workingDirectory),
                     CostModelBenchmark(this@Cli.cottontail, this@Cli.workingDirectory),
-                    org.vitrivr.cottontail.evaluation.cli.cottontail.RuntimeBenchmarkCommand(this@Cli.cottontail, this@Cli.workingDirectory)
+                    RuntimeBenchmarkCommand(this@Cli.cottontail, this@Cli.workingDirectory),
+                    MultimediaIndexBenchmark(this@Cli.cottontail, this@Cli.workingDirectory)
                 ),
 
                 /* Schema related commands. */

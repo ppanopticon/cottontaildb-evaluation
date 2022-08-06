@@ -188,8 +188,8 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
             val gt3 = this.executeRangeQuery(entity, queryVector, mean, this.k, 1).second
 
             /* NNS search. */
-            val (time4, r4: List<String>, plan4) = this.executeNNSQuery(entity, queryVector, mean, this.k, parallel, indexType)
-            val gt4 = this.executeNNSQuery(entity, queryVector, mean, this.k, 1).second
+            val (time4, r4: List<String>, plan4) = this.executeNNSQuery(entity, queryVector, this.k, parallel, indexType)
+            val gt4 = this.executeNNSQuery(entity, queryVector, this.k, 1).second
 
             /* IN query. */
             val (time5, r5, plan5) = this.executeSelectIn(r3 + r4, parallel)
@@ -363,7 +363,7 @@ class MultimediaAnalyticsBenchmark (private val client: SimpleClient, workingDir
      * @param parallel The level of parallelisation.
      * @param indexType The index to use.
      */
-    private fun executeNNSQuery(entity: String, queryVector: FloatArray, mean: Double, k: Int, parallel: Int, indexType: String? = null): Triple<Long,List<String>,List<String>> {
+    private fun executeNNSQuery(entity: String, queryVector: FloatArray, k: Int, parallel: Int, indexType: String? = null): Triple<Long,List<String>,List<String>> {
         var query = Query("cineast.${entity}")
             .select("id")
             .distance("feature", queryVector, Distances.L2, "distance")
