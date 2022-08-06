@@ -39,16 +39,12 @@ class MultimediaIndexBenchmark(private val client: SimpleClient, workingDirector
 
         /** List of entities that should be queried. */
         private val ENTITIES = listOf(
+            "features_averagecolor",
+            "features_visualtextcoembedding",
             "features_hogmf25k512",
             "features_inceptionresnetv2",
             "features_conceptmasksade20k"
         )
-
-        /** List of index structures that should be used. */
-        private val INDEXES = listOf("VAF")
-
-        /** List of parallelism levels that should be tested. */
-        private val PARALLEL = listOf(2, 4, 8, 16, 32)
     }
 
     /** Flag that can be used to directly provide confirmation. */
@@ -95,7 +91,7 @@ class MultimediaIndexBenchmark(private val client: SimpleClient, workingDirector
         try {
             /* Initialise progress bar. */
             this.progress = ProgressBarBuilder()
-                .setInitialMax((ENTITIES.size  * INDEXES.size * PARALLEL.size * this.repeat).toLong())
+                .setInitialMax((ENTITIES.size * this.repeat).toLong())
                 .setStyle(ProgressBarStyle.ASCII).setTaskName("Multimedia Index Benchmark:").build()
 
             /* Execute workload. */
