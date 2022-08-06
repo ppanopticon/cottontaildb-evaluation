@@ -303,7 +303,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         var insert = BatchInsert(TEST_ENTITY_NAME).columns("id", "feature")
         var txId = this.client.begin()
         try {
-            repeat(this.size) {
+            for (i in 0 until this.size) {
                 val (id, vector) = this.data!!.next()
                 this.maxId.updateAndGet { max(it, id) }
 
@@ -319,7 +319,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                 /* Append insert. */
                 if (!insert.append(id, vector)) {
                     this.client.insert(insert.txId(txId))
-                    insert = BatchInsert("evaluation.yandex_deep1b").columns("id", "feature", "category")
+                    insert = BatchInsert("evaluation.yandex_deep1b").columns("id", "feature")
                     insert.append(id, vector)
                 }
                 progress.step()
@@ -351,6 +351,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
             }
         } catch (e: Throwable) {
             this.client.rollback(txId)
+            throw e
         } finally {
             progress.close()
         }
