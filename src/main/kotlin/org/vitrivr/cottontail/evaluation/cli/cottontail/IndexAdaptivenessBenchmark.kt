@@ -257,12 +257,14 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
      * @param indexType The index to use.
      */
     private fun executeNNSQuery(queryVector: FloatArray, indexType: String): Triple<Long,List<Int>,List<Int>> {
+        val txId = this.client.begin(true)
         try {
             val query = Query(TEST_ENTITY_NAME)
                 .select("id")
                 .distance("feature", queryVector, Distances.L2, "distance")
                 .order("distance", Direction.ASC)
                 .limit(1000)
+                .txId(txId)
             /* Retrieve results. */
             val results = ArrayList<Int>(1000)
             val gt = ArrayList<Int>(1000)
@@ -273,7 +275,9 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
 
 
             return Triple(time, results, gt)
-        } finally { }
+        } finally {
+            this.client.rollback(txId)
+        }
     }
 
     /**
