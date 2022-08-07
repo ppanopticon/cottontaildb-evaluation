@@ -187,7 +187,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         if (execute) {
             val doInsert = this.random.nextBoolean()
             if (doInsert) {
-                val insertCount = this.random.nextInt(1, 100)
+                val insertCount = this.random.nextInt(5, 1000)
                 val data = mutex.withLock {
                     (0 until insertCount).map { this.data!!.next() }.toList()
                 }
@@ -220,8 +220,8 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         val progress = ProgressBarBuilder().setStyle(ProgressBarStyle.ASCII).setInitialMax(this.duration.toLong()).setTaskName("Index Adaptiveness Benchmark (Prepare):").build()
         val timer = TimeSource.Monotonic.markNow().plus(this.duration.seconds)
         do {
-            val timestamp = timer.elapsedNow().absoluteValue.inWholeSeconds
-            progress.stepTo(this.duration - timestamp)
+            val timestamp = this.duration - timer.elapsedNow().absoluteValue.inWholeSeconds
+            progress.stepTo(timestamp)
             val query = this.queue.poll(5, TimeUnit.SECONDS)
 
             if (query != null) {
