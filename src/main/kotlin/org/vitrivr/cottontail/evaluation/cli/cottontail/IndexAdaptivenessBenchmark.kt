@@ -50,6 +50,8 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
 
     companion object {
         const val TEST_ENTITY_NAME = "evaluation.yandex_adaptive_test"
+        const val MAX_QUEUE_SIZE = 500
+
         private const val TIME_KEY = "timestamp"
         private const val INSERTS_KEY = "insert"
         private const val DELETES_KEY = "delete"
@@ -81,7 +83,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
     private var progress: ProgressBar? = null
 
     /** A [ArrayBlockingQueue] of [FloatArray] query vectors. */
-    private var queue = ArrayBlockingQueue<FloatArray>(100)
+    private var queue = ArrayBlockingQueue<FloatArray>(1000)
 
     /** Data frame that holds the measurements. */
     private val measurements: MutableMap<String,List<*>> = mutableMapOf()
@@ -137,6 +139,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                     launch(Dispatchers.IO) {
                         while (running) {
                             this@IndexAdaptivenessBenchmark.insertOrDelete(mutex)
+                            delay(this@IndexAdaptivenessBenchmark.random.nextLong(1, 500))
                         }
                     }
                 }
@@ -182,34 +185,29 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
      * @param mutex The [Mutex] used to synchronise access to shared iterator.
      * @return True if action was executed, false if it was skipped.
      */
-    private suspend fun insertOrDelete(mutex: Mutex): Boolean {
-        val execute = this.random.nextBoolean()
-        if (execute) {
-            val doInsert = this.random.nextBoolean()
-            if (doInsert) {
-                val insertCount = this.random.nextInt(5, 1000)
-                val data = mutex.withLock {
-                    (0 until insertCount).map { this.data!!.next() }.toList()
-                }
-                val insert = BatchInsert(TEST_ENTITY_NAME).columns("id", "feature")
-                for ((id, feature) in data) {
-                    insert.append(id, feature)
-                    if (this.random.nextBoolean()) {
-                        this@IndexAdaptivenessBenchmark.queue.offer(feature, 100, TimeUnit.MILLISECONDS)
-                    }
-                }
-                this.client.insert(insert)
-                this.insertsExecuted.addAndGet(insertCount)
-            } else {
-                val delete = Delete(TEST_ENTITY_NAME).where(Expression("id", "=", this.random.nextInt(1, this.maxId.get())))
-                this.client.delete(delete)
-                this.deletesExecuted.incrementAndGet()
+    private suspend fun insertOrDelete(mutex: Mutex) {
+        val doInsert = this.random.nextBoolean()
+        if (doInsert) {
+            val insertCount = this.random.nextInt(100, 5000)
+            val data = mutex.withLock {
+                (0 until insertCount).map { this.data!!.next() }.toList()
             }
+            val insert = BatchInsert(TEST_ENTITY_NAME).columns("id", "feature")
+            for ((id, feature) in data) {
+                insert.append(id, feature)
+                if (this.queue.size < MAX_QUEUE_SIZE) {
+                    this@IndexAdaptivenessBenchmark.queue.offer(feature, 5, TimeUnit.MILLISECONDS)
+                }
+            }
+            this.client.insert(insert)
+            this.insertsExecuted.addAndGet(insertCount)
+        } else {
+            val deleteCount = this.random.nextInt(10, 500)
+            val deletes = IntArray(deleteCount) { this.random.nextInt(1, this.maxId.get()) }
+            val delete = Delete(TEST_ENTITY_NAME).where(Expression("id", "IN", deletes))
+            this.client.delete(delete)
+            this.deletesExecuted.addAndGet(deleteCount)
         }
-
-        /* Wait between 5 and 1000ms. */
-        delay(this.random.nextLong(5, 1000))
-        return execute
     }
 
     /**
@@ -265,6 +263,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                 .order("distance", Direction.ASC)
                 .limit(1000)
                 .txId(txId)
+
             /* Retrieve results. */
             val results = ArrayList<Int>(1000)
             val gt = ArrayList<Int>(1000)
@@ -272,8 +271,6 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                 this.client.query(query.useIndexType(indexType)).forEach { t -> results.add(t.asInt("id")!!) }
             }
             this.client.query(query.disallowIndex()).forEach { t -> gt.add(t.asInt("id")!!) }
-
-
             return Triple(time, results, gt)
         } finally {
             this.client.rollback(txId)
