@@ -55,6 +55,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         private const val TIME_KEY = "timestamp"
         private const val INSERTS_KEY = "insert"
         private const val DELETES_KEY = "delete"
+        private const val OOB_KEY = "oob"
         private const val COUNT_KEY = "count"
         private const val RUNTIME_KEY = "runtime"
         private const val DCG_KEY = "dcg"
@@ -62,7 +63,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
     }
 
     /** Flag that can be used to directly provide confirmation. */
-    private val size: Int by option("-s", "--size", help = "The start size of the collection.").int().default(1_000_000)
+    private val size: Int by option("-s", "--size", help = "The start size of the collection.").int().default(1_000)
 
     /** Flag that can be used to directly provide confirmation. */
     private val duration: Int by option("-d", "--duration", help = "Duration of the run in seconds.").int().default(3600)
@@ -103,6 +104,9 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
     /** The maximum ID seen so far. */
     private val deletesExecuted = AtomicInteger()
 
+    /** The number of tombstone entries expected. */
+    private val tombstonesCounter = AtomicInteger()
+
     /**
      * Executes the benchmark.
      */
@@ -116,16 +120,23 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         /* Clear local data. */
         this.measurements.clear()
         this.measurements[TIME_KEY] = mutableListOf<Long>()
-        this.measurements[INSERTS_KEY] = mutableListOf<Int>()
         this.measurements[COUNT_KEY] = mutableListOf<Long>()
+        this.measurements[INSERTS_KEY] = mutableListOf<Int>()
         this.measurements[DELETES_KEY] = mutableListOf<Int>()
+        this.measurements[OOB_KEY] = mutableListOf<Int>()
         this.measurements[RUNTIME_KEY] = mutableListOf<Double>()
         this.measurements[DCG_KEY] = mutableListOf<Double>()
         this.measurements[RECALL_KEY] = mutableListOf<Double>()
 
+        /* Reset counters and statistics. */
+        this.stat.clear()
+        this.maxId.set(0)
+        this.insertsExecuted.set(0)
+        this.deletesExecuted.set(0)
+
         try {
             /* Open dataset. */
-            this.data = YandexDeep1BIterator(this.workingDirectory.resolve("datasets/yandex-deep1b/base.1B.fbin"))
+            this.data = YandexDeep1BIterator(this.workingDirectory.resolve("datasets/yandex-deep1b/query.public.10K.fbin"))
 
             /* Prepare data collection. */
             this.prepare()
@@ -178,7 +189,6 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         }
     }
 
-
     /**
      * Executes a random insert OR delete operation.
      *
@@ -188,13 +198,23 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
     private suspend fun insertOrDelete(mutex: Mutex) {
         val doInsert = this.random.nextBoolean()
         if (doInsert) {
-            val insertCount = this.random.nextInt(100, 5000)
+            val insertCount = this.random.nextInt(100, 7500)
             val data = mutex.withLock {
-                (0 until insertCount).map { this.data!!.next() }.toList()
+                (0 until insertCount).map {
+                    this.data!!.next()
+                }.toList()
             }
             val insert = BatchInsert(TEST_ENTITY_NAME).columns("id", "feature")
             for ((id, feature) in data) {
                 insert.append(id, feature)
+
+                /* Check if entry lies out of bounds. */
+                for (i in feature.indices) {
+                    if (feature[i] > this.stat.max[i] || feature[i] < this.stat.min[i]) {
+                        this.tombstonesCounter.incrementAndGet()
+                        break
+                    }
+                }
                 if (this.queue.size < MAX_QUEUE_SIZE) {
                     this@IndexAdaptivenessBenchmark.queue.offer(feature, 5, TimeUnit.MILLISECONDS)
                 }
@@ -229,6 +249,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                 (this.measurements[TIME_KEY] as MutableList<Long>).add(timestamp)
                 (this.measurements[INSERTS_KEY] as MutableList<Int>).add(this.insertsExecuted.get())
                 (this.measurements[DELETES_KEY] as MutableList<Int>).add(this.deletesExecuted.get())
+                (this.measurements[OOB_KEY] as MutableList<Int>).add(this.tombstonesCounter.get())
                 (this.measurements[COUNT_KEY] as MutableList<Long>).add(this.count())
                 (this.measurements[RUNTIME_KEY] as MutableList<Double>).add(duration / 1000.0)
                 (this.measurements[DCG_KEY] as MutableList<Double>).add(Measures.ndcg(results, gt))
