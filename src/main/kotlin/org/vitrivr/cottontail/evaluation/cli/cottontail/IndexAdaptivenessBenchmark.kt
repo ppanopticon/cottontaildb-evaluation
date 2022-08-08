@@ -63,7 +63,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
     }
 
     /** Flag that can be used to directly provide confirmation. */
-    private val size: Int by option("-s", "--size", help = "The start size of the collection.").int().default(1_000)
+    private val size: Int by option("-s", "--size", help = "The start size of the collection.").int().default(1_000_000)
 
     /** Flag that can be used to directly provide confirmation. */
     private val duration: Int by option("-d", "--duration", help = "Duration of the run in seconds.").int().default(3600)
@@ -136,7 +136,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
 
         try {
             /* Open dataset. */
-            this.data = YandexDeep1BIterator(this.workingDirectory.resolve("datasets/yandex-deep1b/query.public.10K.fbin"))
+            this.data = YandexDeep1BIterator(this.workingDirectory.resolve("datasets/yandex-deep1b/base.1B.fbin"))
 
             /* Prepare data collection. */
             this.prepare()
