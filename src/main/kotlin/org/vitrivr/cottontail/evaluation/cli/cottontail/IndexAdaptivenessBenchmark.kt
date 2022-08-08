@@ -35,6 +35,7 @@ import java.nio.file.StandardOpenOption
 import java.util.SplittableRandom
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.system.measureTimeMillis
 import kotlin.time.Duration.Companion.seconds
@@ -50,12 +51,15 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
 
     companion object {
         const val TEST_ENTITY_NAME = "evaluation.yandex_adaptive_test"
+        const val INDEX_NAME = "test_index"
+
         const val MAX_QUEUE_SIZE = 500
 
         private const val TIME_KEY = "timestamp"
         private const val INSERTS_KEY = "insert"
         private const val DELETES_KEY = "delete"
         private const val OOB_KEY = "oob"
+        private const val REBUILT_KEY = "oob"
         private const val COUNT_KEY = "count"
         private const val RUNTIME_KEY = "runtime"
         private const val DCG_KEY = "dcg"
@@ -67,6 +71,9 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
 
     /** Flag that can be used to directly provide confirmation. */
     private val duration: Int by option("-d", "--duration", help = "Duration of the run in seconds.").int().default(3600)
+
+    /** Flag that can be used to directly provide confirmation. */
+    private val rebuildAfter: Int by option("-r", "--rebuild", help = "Duration in seconds after which index should be rebuilt.").int().default(-1)
 
     /** Flag that can be used to directly provide confirmation. */
     private val threads: Int by option("-t", "--threads", help = "Duration of the run in seconds.").int().default(1)
@@ -107,6 +114,9 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
     /** The number of tombstone entries expected. */
     private val tombstonesCounter = AtomicInteger()
 
+    /** The number of tombstone entries expected. */
+    private val indexRebuilt = AtomicBoolean(false)
+
     /**
      * Executes the benchmark.
      */
@@ -127,12 +137,14 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         this.measurements[RUNTIME_KEY] = mutableListOf<Double>()
         this.measurements[DCG_KEY] = mutableListOf<Double>()
         this.measurements[RECALL_KEY] = mutableListOf<Double>()
+        this.measurements[REBUILT_KEY] = mutableListOf<Boolean>()
 
         /* Reset counters and statistics. */
         this.stat.clear()
         this.maxId.set(0)
         this.insertsExecuted.set(0)
         this.deletesExecuted.set(0)
+        this.indexRebuilt.set(false)
 
         try {
             /* Open dataset. */
@@ -237,6 +249,11 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
     private suspend fun benchmark() {
         val progress = ProgressBarBuilder().setStyle(ProgressBarStyle.ASCII).setInitialMax(this.duration.toLong()).setTaskName("Index Adaptiveness Benchmark (Prepare):").build()
         val timer = TimeSource.Monotonic.markNow().plus(this.duration.seconds)
+        val rebuild = if (this.rebuildAfter > 0 && this.rebuildAfter < this.duration) {
+            this.rebuildAfter
+        } else {
+            Int.MAX_VALUE
+        }
         do {
             val timestamp = this.duration - timer.elapsedNow().absoluteValue.inWholeSeconds
             progress.stepTo(timestamp)
@@ -254,6 +271,12 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                 (this.measurements[RUNTIME_KEY] as MutableList<Double>).add(duration / 1000.0)
                 (this.measurements[DCG_KEY] as MutableList<Double>).add(Measures.ndcg(results, gt))
                 (this.measurements[RECALL_KEY] as MutableList<Double>).add(Measures.recall(results, gt))
+                (this.measurements[REBUILT_KEY] as MutableList<Boolean>).add(this.indexRebuilt.get())
+            }
+
+            /* Rebuild index when half of the time has passed. */
+            if (timestamp > rebuild && this.indexRebuilt.compareAndSet(false, true)) {
+                this.client.rebuild(RebuildIndex(INDEX_NAME).async())
             }
 
             delay(this.random.nextLong(10, 1000))
@@ -355,9 +378,9 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
 
             /** Create index. */
             when(this.index) {
-                CottontailGrpc.IndexType.VAF -> this.client.create(CreateIndex(TEST_ENTITY_NAME, "feature", CottontailGrpc.IndexType.VAF).param("vaf.marks_per_dimension", "35"))
-                CottontailGrpc.IndexType.PQ -> this.client.create(CreateIndex(TEST_ENTITY_NAME, "feature", CottontailGrpc.IndexType.PQ).param("pq.centroids", "4096").param("pq.subspaces","8"))
-                CottontailGrpc.IndexType.IVFPQ -> this.client.create(CreateIndex(TEST_ENTITY_NAME, "feature", CottontailGrpc.IndexType.IVFPQ).param("ivfpq.centroids", "4096").param("ivfpq.subspaces","8").param("ivfpq.coarse_centroids","256"))
+                CottontailGrpc.IndexType.VAF -> this.client.create(CreateIndex(TEST_ENTITY_NAME, "feature", CottontailGrpc.IndexType.VAF).param("vaf.marks_per_dimension", "35").name(INDEX_NAME))
+                CottontailGrpc.IndexType.PQ -> this.client.create(CreateIndex(TEST_ENTITY_NAME, "feature", CottontailGrpc.IndexType.PQ).param("pq.centroids", "4096").param("pq.subspaces","8").name(INDEX_NAME))
+                CottontailGrpc.IndexType.IVFPQ -> this.client.create(CreateIndex(TEST_ENTITY_NAME, "feature", CottontailGrpc.IndexType.IVFPQ).param("ivfpq.centroids", "4096").param("ivfpq.subspaces","8").param("ivfpq.coarse_centroids","256").name(INDEX_NAME))
                 else -> throw IllegalArgumentException("Unsupported index!")
             }
 
