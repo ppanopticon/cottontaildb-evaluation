@@ -59,6 +59,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         private const val INSERTS_KEY = "insert"
         private const val DELETES_KEY = "delete"
         private const val OOB_KEY = "oob"
+        private const val K_KEY = "k"
         private const val REBUILT_KEY = "oob"
         private const val COUNT_KEY = "count"
         private const val RUNTIME_KEY = "runtime"
@@ -138,6 +139,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         this.measurements[DCG_KEY] = mutableListOf<Double>()
         this.measurements[RECALL_KEY] = mutableListOf<Double>()
         this.measurements[REBUILT_KEY] = mutableListOf<Boolean>()
+        this.measurements[K_KEY] = mutableListOf<Int>()
 
         /* Reset counters and statistics. */
         this.stat.clear()
@@ -272,6 +274,8 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                 (this.measurements[DCG_KEY] as MutableList<Double>).add(Measures.ndcg(results, gt))
                 (this.measurements[RECALL_KEY] as MutableList<Double>).add(Measures.recall(results, gt))
                 (this.measurements[REBUILT_KEY] as MutableList<Boolean>).add(this.indexRebuilt.get())
+                (this.measurements[K_KEY] as MutableList<Int>).add(results.size)
+
             }
 
             /* Rebuild index when half of the time has passed. */
