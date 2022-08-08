@@ -73,7 +73,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
     private val duration: Int by option("-d", "--duration", help = "Duration of the run in seconds.").int().default(3600)
 
     /** Flag that can be used to directly provide confirmation. */
-    private val rebuildAfter: Int by option("-r", "--rebuild", help = "Duration in seconds after which index should be rebuilt.").int().default(-1)
+    private val rebuildAfter: Int by option("-b", "--rebuild", help = "Duration in seconds after which index should be rebuilt.").int().default(-1)
 
     /** Flag that can be used to directly provide confirmation. */
     private val threads: Int by option("-t", "--threads", help = "Duration of the run in seconds.").int().default(1)
