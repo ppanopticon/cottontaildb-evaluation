@@ -280,7 +280,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
 
             /* Rebuild index when half of the time has passed. */
             if (timestamp > rebuild && this.indexRebuilt.compareAndSet(false, true)) {
-                this.client.rebuild(RebuildIndex(INDEX_NAME).async())
+                this.client.rebuild(RebuildIndex("${TEST_ENTITY_NAME}.${INDEX_NAME}").async())
             }
 
             delay(this.random.nextLong(10, 1000))
