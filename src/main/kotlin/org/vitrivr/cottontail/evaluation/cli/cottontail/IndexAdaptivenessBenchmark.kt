@@ -37,6 +37,7 @@ import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.math.absoluteValue
 import kotlin.system.measureTimeMillis
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
@@ -218,7 +219,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                     val vec = this.data!!.next()
                     if (this.jitter) {
                         for (i in vec.second.indices) {
-                            vec.second[i] += this.random.nextDouble(-this.stat.mean[i],this.stat.mean[i]).toFloat() /* Introcue noise. */
+                            vec.second[i] += this.random.nextDouble(-(this.stat.mean[i].absoluteValue),this.stat.mean[i].absoluteValue).toFloat() /* Introcue noise. */
                         }
                     }
                     vec
