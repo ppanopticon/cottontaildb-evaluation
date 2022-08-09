@@ -60,7 +60,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         private const val DELETES_KEY = "delete"
         private const val OOB_KEY = "oob"
         private const val K_KEY = "k"
-        private const val REBUILT_KEY = "oob"
+        private const val REBUILT_KEY = "rebuilt"
         private const val COUNT_KEY = "count"
         private const val RUNTIME_KEY = "runtime"
         private const val DCG_KEY = "dcg"
