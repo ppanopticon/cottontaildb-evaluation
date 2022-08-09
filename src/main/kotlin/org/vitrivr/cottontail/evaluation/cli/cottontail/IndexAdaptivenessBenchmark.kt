@@ -81,7 +81,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
     private val threads: Int by option("-t", "--threads", help = "Duration of the run in seconds.").int().default(1)
 
     /** Flag that can be used to directly provide confirmation. */
-    private val jitter: Boolean by option("-j", "--jitter", help = "Duration of the run in seconds.").flag("--no-jitter")
+    private val jitter: Int by option("-j", "--jitter", help = "Duration of the run in seconds.").int().default(0)
 
     /** The type of index to benchmark. */
     private val index by argument(name = "index", help = "The type of index to create.").enum<CottontailGrpc.IndexType>()
@@ -217,9 +217,10 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
             val data = mutex.withLock {
                 (0 until insertCount).map {
                     val vec = this.data!!.next()
-                    if (this.jitter) {
+                    if (this.jitter > 0) {
                         for (i in vec.second.indices) {
-                            vec.second[i] += this.random.nextDouble(-(this.stat.mean[i].absoluteValue),this.stat.mean[i].absoluteValue).toFloat() /* Introcue noise. */
+                            val noise = this.stat.mean[i].absoluteValue * this.jitter
+                            vec.second[i] += this.random.nextDouble(-noise,noise).toFloat() /* Introdcue noise. */
                         }
                     }
                     vec
