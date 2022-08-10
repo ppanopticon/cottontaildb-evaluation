@@ -147,6 +147,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         this.maxId.set(0)
         this.insertsExecuted.set(0)
         this.deletesExecuted.set(0)
+        this.tombstonesCounter.set(0)
         this.indexRebuilt.set(false)
 
         try {
