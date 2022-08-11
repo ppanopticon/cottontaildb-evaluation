@@ -67,6 +67,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         private const val RUNTIME_KEY = "runtime"
         private const val DCG_KEY = "dcg"
         private const val RECALL_KEY = "recall"
+        private const val PLAN_KEY = "plan"
     }
 
     /** Flag that can be used to directly provide confirmation. */
@@ -142,6 +143,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         this.measurements[RECALL_KEY] = mutableListOf<Double>()
         this.measurements[REBUILT_KEY] = mutableListOf<Boolean>()
         this.measurements[K_KEY] = mutableListOf<Int>()
+        this.measurements[PLAN_KEY] = mutableListOf<Pair<String,Float>>()
 
         /* Reset counters and statistics. */
         this.stat.clear()
@@ -276,7 +278,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
             val query = this.queue.poll(5, TimeUnit.SECONDS)
 
             if (query != null) {
-                val (duration, results, gt) = this.executeNNSQuery(query, this.index.toString())
+                val (duration, plan, results) = this.executeNNSQuery(query, this.index.toString())
 
                 /* Record measurements. */
                 (this.measurements[TIME_KEY] as MutableList<Long>).add(timestamp)
@@ -285,10 +287,11 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                 (this.measurements[OOB_KEY] as MutableList<Int>).add(this.tombstonesCounter.get())
                 (this.measurements[COUNT_KEY] as MutableList<Long>).add(this.count())
                 (this.measurements[RUNTIME_KEY] as MutableList<Double>).add(duration / 1000.0)
-                (this.measurements[DCG_KEY] as MutableList<Double>).add(Measures.ndcg(results, gt))
-                (this.measurements[RECALL_KEY] as MutableList<Double>).add(Measures.recall(results, gt))
+                (this.measurements[DCG_KEY] as MutableList<Double>).add(Measures.ndcg(results.first, results.second))
+                (this.measurements[RECALL_KEY] as MutableList<Double>).add(Measures.recall(results.first, results.second))
                 (this.measurements[REBUILT_KEY] as MutableList<Boolean>).add(this.indexRebuilt.get())
-                (this.measurements[K_KEY] as MutableList<Int>).add(results.size)
+                (this.measurements[K_KEY] as MutableList<Int>).add(results.first.size)
+                (this.measurements[PLAN_KEY] as MutableList<Pair<String,Float>>).add(plan.last())
 
             }
 
@@ -316,7 +319,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
      * @param queryVector The query vector.
      * @param indexType The index to use.
      */
-    private fun executeNNSQuery(queryVector: FloatArray, indexType: String): Triple<Long,List<Int>,List<Int>> {
+    private fun executeNNSQuery(queryVector: FloatArray, indexType: String): Triple<Long,List<Pair<String,Float>>,Pair<List<Int>,List<Int>>> {
         val txId = this.client.begin(true)
         try {
             val query = Query(TEST_ENTITY_NAME)
@@ -326,6 +329,13 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                 .limit(1000)
                 .txId(txId)
 
+            /* Retrieve execution plan. */
+            val plan = ArrayList<Pair<String,Float>>()
+            this.client.explain(query.useIndexType(indexType)).forEach {
+                if (it.asInt("rank") == 1) {
+                plan.add(it.asString("designation")!! to it.asFloat("score")!!)
+            }}
+
             /* Retrieve results. */
             val results = ArrayList<Int>(1000)
             val gt = ArrayList<Int>(1000)
@@ -333,7 +343,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                 this.client.query(query.useIndexType(indexType)).forEach { t -> results.add(t.asInt("id")!!) }
             }
             this.client.query(query.disallowIndex()).forEach { t -> gt.add(t.asInt("id")!!) }
-            return Triple(time, results, gt)
+            return Triple(time,  plan,results to gt)
         } finally {
             this.client.rollback(txId)
         }
