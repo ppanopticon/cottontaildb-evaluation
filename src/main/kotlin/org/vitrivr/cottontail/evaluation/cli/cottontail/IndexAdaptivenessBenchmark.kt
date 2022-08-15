@@ -253,7 +253,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
             this.insertsExecuted.addAndGet(insertCount)
         } else {
             val deleteCount = this.random.nextInt(10, 500)
-            val deletes = IntArray(deleteCount) { this.random.nextInt(1, this.maxId.get()) }
+            val deletes = (0 until deleteCount).map { this.random.nextInt(1, this.maxId.get()) }
             val delete = Delete(TEST_ENTITY_NAME).where(Expression("id", "IN", deletes))
             this.client.delete(delete)
             this.deletesExecuted.addAndGet(deleteCount)
