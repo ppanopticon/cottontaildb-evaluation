@@ -2,7 +2,6 @@ package org.vitrivr.cottontail.evaluation.cli.cottontail
 
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.options.default
-import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.enum
 import com.github.ajalt.clikt.parameters.types.int
@@ -33,12 +32,9 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 import java.util.SplittableRandom
-import java.util.concurrent.ArrayBlockingQueue
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.absoluteValue
-import kotlin.math.withSign
 import kotlin.system.measureTimeMillis
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.ExperimentalTime
@@ -47,15 +43,13 @@ import kotlin.time.TimeSource
 /**
  *
  * @author Ralph Gasser
- * @version 1.0
+ * @version 1.0.0
  */
 class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirectory: Path): AbstractBenchmarkCommand(workingDirectory, name = "index-adaptiveness", help = "Prepares and executes an index benchmark test.")  {
 
     companion object {
         const val TEST_ENTITY_NAME = "evaluation.yandex_adaptive_test"
         const val INDEX_NAME = "test_index"
-
-        const val MAX_QUEUE_SIZE = 500
 
         private const val TIME_KEY = "timestamp"
         private const val INSERTS_KEY = "insert"
@@ -93,9 +87,6 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
 
     /** The [ProgressBar] used. */
     private var progress: ProgressBar? = null
-
-    /** A [ArrayBlockingQueue] of [FloatArray] query vectors. */
-    private var queue = ArrayBlockingQueue<FloatArray>(1000)
 
     /** Data frame that holds the measurements. */
     private val measurements: MutableMap<String,List<*>> = mutableMapOf()
@@ -174,9 +165,6 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                     }
                 }
 
-                /* Wait 3 seconds / give insert jobs a little headstart. */
-                delay(3000)
-
                 /* Run benchmark. */
                 this@IndexAdaptivenessBenchmark.benchmark()
                 running = false
@@ -218,16 +206,16 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         val doInsert = this.random.nextBoolean()
         if (doInsert) {
             val insertCount = this.random.nextInt(100, 7500)
-            val data = mutex.withLock {
+            val vectors = mutex.withLock {
                 (0 until insertCount).map {
                     val vec = this.data!!.next()
                     if (this.jitter > 0) {
                         for (i in vec.second.indices) {
                             val noise = this.stat.mean[i].absoluteValue * this.jitter
-                            if (this.random.nextBoolean()) {
-                                vec.second[i] += this.random.nextDouble(0.0, noise).toFloat() /* Introduce noise. */
+                            if (this.random.nextBoolean()) { /* Introduce noise. */
+                                vec.second[i] += this.random.nextDouble(0.0, noise).toFloat()
                             } else {
-                                vec.second[i] -= this.random.nextDouble(0.0, noise).toFloat() /* Introduce noise. */
+                                vec.second[i] -= this.random.nextDouble(0.0, noise).toFloat()
                             }
                         }
                     }
@@ -235,7 +223,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                 }.toList()
             }
             val insert = BatchInsert(TEST_ENTITY_NAME).columns("id", "feature")
-            for ((id, feature) in data) {
+            for ((id, feature) in vectors) {
                 insert.append(id, feature)
 
                 /* Check if entry lies out of bounds. */
@@ -244,9 +232,6 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                         this.tombstonesCounter.incrementAndGet()
                         break
                     }
-                }
-                if (this.queue.size < MAX_QUEUE_SIZE) {
-                    this@IndexAdaptivenessBenchmark.queue.offer(feature, 5, TimeUnit.MILLISECONDS)
                 }
             }
             this.client.insert(insert)
@@ -272,12 +257,11 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         } else {
             Int.MAX_VALUE
         }
-        do {
-            val timestamp = this.duration - timer.elapsedNow().absoluteValue.inWholeSeconds
-            progress.stepTo(timestamp)
-            val query = this.queue.poll(5, TimeUnit.SECONDS)
-
-            if (query != null) {
+        YandexDeep1BIterator(this.workingDirectory.resolve("datasets/yandex-deep1b/query.public.10K.fbin")).use { queries ->
+            do {
+                val timestamp = this.duration - timer.elapsedNow().absoluteValue.inWholeSeconds
+                progress.stepTo(timestamp)
+                val (id, query) = queries.next()
                 val (duration, plan, results) = this.executeNNSQuery(query, this.index.toString())
 
                 /* Record measurements. */
@@ -293,15 +277,15 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                 (this.measurements[K_KEY] as MutableList<Int>).add(results.first.size)
                 (this.measurements[PLAN_KEY] as MutableList<Pair<String,Float>>).add(plan.last())
 
-            }
 
-            /* Rebuild index when half of the time has passed. */
-            if (timestamp > rebuild && this.indexRebuilt.compareAndSet(false, true)) {
-                this.client.rebuild(RebuildIndex("${TEST_ENTITY_NAME}.${INDEX_NAME}").async())
-            }
+                /* Rebuild index when half of the time has passed. */
+                if (timestamp > rebuild && this.indexRebuilt.compareAndSet(false, true)) {
+                    this.client.rebuild(RebuildIndex("${TEST_ENTITY_NAME}.${INDEX_NAME}").async())
+                }
 
-            delay(this.random.nextLong(10, 1000))
-        } while (timer.hasNotPassedNow())
+                delay(this.random.nextLong(50, 1000))
+            } while (timer.hasNotPassedNow())
+        }
     }
 
     /**
@@ -407,8 +391,8 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
             /** Create index. */
             when(this.index) {
                 CottontailGrpc.IndexType.VAF -> this.client.create(CreateIndex(TEST_ENTITY_NAME, "feature", CottontailGrpc.IndexType.VAF).param("vaf.marks_per_dimension", "35").name(INDEX_NAME))
-                CottontailGrpc.IndexType.PQ -> this.client.create(CreateIndex(TEST_ENTITY_NAME, "feature", CottontailGrpc.IndexType.PQ).param("pq.centroids", "2048").param("pq.subspaces","8").name(INDEX_NAME))
-                CottontailGrpc.IndexType.IVFPQ -> this.client.create(CreateIndex(TEST_ENTITY_NAME, "feature", CottontailGrpc.IndexType.IVFPQ).param("ivfpq.centroids", "4096").param("ivfpq.subspaces","8").param("ivfpq.coarse_centroids","256").name(INDEX_NAME))
+                CottontailGrpc.IndexType.PQ -> this.client.create(CreateIndex(TEST_ENTITY_NAME, "feature", CottontailGrpc.IndexType.PQ).param("pq.centroids", "512").param("pq.subspaces","8").name(INDEX_NAME))
+                CottontailGrpc.IndexType.IVFPQ -> this.client.create(CreateIndex(TEST_ENTITY_NAME, "feature", CottontailGrpc.IndexType.IVFPQ).param("ivfpq.centroids", "512").param("ivfpq.subspaces","8").param("ivfpq.coarse_centroids","128").name(INDEX_NAME))
                 else -> throw IllegalArgumentException("Unsupported index!")
             }
 
