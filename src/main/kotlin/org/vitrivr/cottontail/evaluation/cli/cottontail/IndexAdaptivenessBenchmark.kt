@@ -244,7 +244,8 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
             this.deletesExecuted.addAndGet(deleteCount)
         }
     } catch (e: Throwable) {
-        System.err.println("An error occurred during insert/delete: ${e?.message}")
+        System.err.println("An error occurred during insert/delete: ${e.message}")
+        e.printStackTrace()
     }
 
     /**
@@ -300,7 +301,8 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
 
                         delay(this.random.nextLong(50, 1000))
                     } catch (e: Throwable) {
-                        System.err.println("An error occurred during select ${e?.message} $")
+                        System.err.println("An error occurred during select ${e.message} $")
+                        e.printStackTrace()
                     }
                 } else {
                     queries.close()
