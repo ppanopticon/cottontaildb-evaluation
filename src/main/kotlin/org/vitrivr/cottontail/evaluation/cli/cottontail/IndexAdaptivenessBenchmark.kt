@@ -202,7 +202,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
      * @param mutex The [Mutex] used to synchronise access to shared iterator.
      * @return True if action was executed, false if it was skipped.
      */
-    private suspend fun insertOrDelete(mutex: Mutex) {
+    private suspend fun insertOrDelete(mutex: Mutex) = try {
         val doInsert = this.random.nextBoolean()
         if (doInsert) {
             val insertCount = this.random.nextInt(100, 7500)
@@ -243,6 +243,8 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
             this.client.delete(delete)
             this.deletesExecuted.addAndGet(deleteCount)
         }
+    } catch (e: Throwable) {
+        System.err.println("An error occurred during insert/delete: ${e?.message}")
     }
 
     /**
@@ -257,34 +259,56 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         } else {
             Int.MAX_VALUE
         }
-        YandexDeep1BIterator(this.workingDirectory.resolve("datasets/yandex-deep1b/query.public.10K.fbin")).use { queries ->
+        var queries = YandexDeep1BIterator(this.workingDirectory.resolve("datasets/yandex-deep1b/query.public.10K.fbin"))
+        try {
             do {
                 val timestamp = this.duration - timer.elapsedNow().absoluteValue.inWholeSeconds
                 progress.stepTo(timestamp)
-                val (id, query) = queries.next()
-                val (duration, plan, results) = this.executeNNSQuery(query, this.index.toString())
+                if (queries.hasNext()) {
+                    val (id, query) = queries.next()
+                    try {
+                        val (duration, plan, results) = this.executeNNSQuery(query, this.index.toString())
 
-                /* Record measurements. */
-                (this.measurements[TIME_KEY] as MutableList<Long>).add(timestamp)
-                (this.measurements[INSERTS_KEY] as MutableList<Int>).add(this.insertsExecuted.get())
-                (this.measurements[DELETES_KEY] as MutableList<Int>).add(this.deletesExecuted.get())
-                (this.measurements[OOB_KEY] as MutableList<Int>).add(this.tombstonesCounter.get())
-                (this.measurements[COUNT_KEY] as MutableList<Long>).add(this.count())
-                (this.measurements[RUNTIME_KEY] as MutableList<Double>).add(duration / 1000.0)
-                (this.measurements[DCG_KEY] as MutableList<Double>).add(Measures.ndcg(results.first, results.second))
-                (this.measurements[RECALL_KEY] as MutableList<Double>).add(Measures.recall(results.first, results.second))
-                (this.measurements[REBUILT_KEY] as MutableList<Boolean>).add(this.indexRebuilt.get())
-                (this.measurements[K_KEY] as MutableList<Int>).add(results.first.size)
-                (this.measurements[PLAN_KEY] as MutableList<Pair<String,Float>>).add(plan.last())
+                        /* Record measurements. */
+                        (this.measurements[TIME_KEY] as MutableList<Long>).add(timestamp)
+                        (this.measurements[INSERTS_KEY] as MutableList<Int>).add(this.insertsExecuted.get())
+                        (this.measurements[DELETES_KEY] as MutableList<Int>).add(this.deletesExecuted.get())
+                        (this.measurements[OOB_KEY] as MutableList<Int>).add(this.tombstonesCounter.get())
+                        (this.measurements[COUNT_KEY] as MutableList<Long>).add(this.count())
+                        (this.measurements[RUNTIME_KEY] as MutableList<Double>).add(duration / 1000.0)
+                        (this.measurements[DCG_KEY] as MutableList<Double>).add(
+                            Measures.ndcg(
+                                results.first,
+                                results.second
+                            )
+                        )
+                        (this.measurements[RECALL_KEY] as MutableList<Double>).add(
+                            Measures.recall(
+                                results.first,
+                                results.second
+                            )
+                        )
+                        (this.measurements[REBUILT_KEY] as MutableList<Boolean>).add(this.indexRebuilt.get())
+                        (this.measurements[K_KEY] as MutableList<Int>).add(results.first.size)
+                        (this.measurements[PLAN_KEY] as MutableList<Pair<String, Float>>).add(plan.last())
 
 
-                /* Rebuild index when half of the time has passed. */
-                if (timestamp > rebuild && this.indexRebuilt.compareAndSet(false, true)) {
-                    this.client.rebuild(RebuildIndex("${TEST_ENTITY_NAME}.${INDEX_NAME}").async())
+                        /* Rebuild index when half of the time has passed. */
+                        if (timestamp > rebuild && this.indexRebuilt.compareAndSet(false, true)) {
+                            this.client.rebuild(RebuildIndex("${TEST_ENTITY_NAME}.${INDEX_NAME}").async())
+                        }
+
+                        delay(this.random.nextLong(50, 1000))
+                    } catch (e: Throwable) {
+                        System.err.println("An error occurred during select ${e?.message} $")
+                    }
+                } else {
+                    queries.close()
+                    queries = YandexDeep1BIterator(this.workingDirectory.resolve("datasets/yandex-deep1b/query.public.10K.fbin"))
                 }
-
-                delay(this.random.nextLong(50, 1000))
             } while (timer.hasNotPassedNow())
+        } finally {
+            queries.close()
         }
     }
 
