@@ -250,10 +250,21 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                     }
                 }
             }
-            this.client.insert(insert)
+            while (true) {
+                try {
+                    this.client.insert(insert)
+                    break
+                } catch (e: StatusRuntimeException) {
+                    if (e.status.code == Status.Code.RESOURCE_EXHAUSTED) {
+                        continue /* Retry. */
+                    } else {
+                        throw e
+                    }
+                }
+            }
             this.insertsExecuted.addAndGet(insertCount)
         } catch (e: Throwable) {
-            System.err.println("An error occurred during insert/delete: ${e.message}")
+            System.err.println("An error occurred during insert: ${e.message}")
             e.printStackTrace()
         }
     }
@@ -266,10 +277,22 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
             val deleteCount = this.random.nextInt((MIN_OP * this.deletes).toInt(), (MAX_OP * this.deletes).toInt())
             val deletes = (0 until deleteCount).map { this.random.nextInt(1, this.maxId.get()) }
             val delete = Delete(TEST_ENTITY_NAME).where(Expression("id", "IN", deletes))
-            this.client.delete(delete)
+            while (true) {
+                try {
+                    this.client.delete(delete)
+                    break
+                } catch (e: StatusRuntimeException) {
+                    if (e.status.code == Status.Code.RESOURCE_EXHAUSTED) {
+                        continue /* Retry upon conflict. */
+                    } else {
+                        throw e
+                    }
+                }
+            }
+
             this.deletesExecuted.addAndGet(deleteCount)
         } catch (e: Throwable) {
-            System.err.println("An error occurred during insert/delete: ${e.message}")
+            System.err.println("An error occurred during delete: ${e.message}")
             e.printStackTrace()
         }
     }
