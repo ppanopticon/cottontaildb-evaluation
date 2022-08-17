@@ -4,6 +4,7 @@ import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.enum
+import com.github.ajalt.clikt.parameters.types.float
 import com.github.ajalt.clikt.parameters.types.int
 import com.google.gson.GsonBuilder
 import io.grpc.Status
@@ -48,6 +49,10 @@ import kotlin.time.TimeSource
 class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirectory: Path): AbstractBenchmarkCommand(workingDirectory, name = "index-adaptiveness", help = "Prepares and executes an index benchmark test.")  {
 
     companion object {
+
+        const val MIN_OP = 100
+        const val MAX_OP = 5000
+
         const val TEST_ENTITY_NAME = "evaluation.yandex_adaptive_test"
         const val INDEX_NAME = "test_index"
 
@@ -74,10 +79,13 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
     private val rebuildAfter: Int by option("-b", "--rebuild", help = "Duration in seconds after which index should be rebuilt.").int().default(-1)
 
     /** Flag that can be used to directly provide confirmation. */
-    private val threads: Int by option("-t", "--threads", help = "Duration of the run in seconds.").int().default(1)
+    private val jitter: Int by option("-j", "--jitter", help = "Duration of the run in seconds.").int().default(0)
 
     /** Flag that can be used to directly provide confirmation. */
-    private val jitter: Int by option("-j", "--jitter", help = "Duration of the run in seconds.").int().default(0)
+    private val inserts: Float by option("-I", "--inserts", help = "Percentage of insert operations.").float().default(0.5f)
+
+    /** Flag that can be used to directly provide confirmation. */
+    private val deletes: Float by option("-D", "--deletes", help = "Percentage of delete operations.").float().default(0.5f)
 
     /** The type of index to benchmark. */
     private val index by argument(name = "index", help = "The type of index to create.").enum<CottontailGrpc.IndexType>()
@@ -152,25 +160,39 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
             this.prepare()
 
             /* Run the benchmark. */
-            val mutex = Mutex()
             var running = true
             runBlocking {
-                /* Launch write jobs. */
-                val jobs = (0 until this@IndexAdaptivenessBenchmark.threads).map {
-                    launch(Dispatchers.IO) {
-                        while (running) {
-                            this@IndexAdaptivenessBenchmark.insertOrDelete(mutex)
-                            delay(this@IndexAdaptivenessBenchmark.random.nextLong(1, 500))
-                        }
+                val insert = launch(Dispatchers.IO) {
+                    while (running) {
+                        this@IndexAdaptivenessBenchmark.doInsert()
+                        delay(this@IndexAdaptivenessBenchmark.random.nextLong(50, 500))
                     }
+                }
+                val delete = launch(Dispatchers.IO) {
+                    while (running) {
+                        this@IndexAdaptivenessBenchmark.doDelete()
+                        delay(this@IndexAdaptivenessBenchmark.random.nextLong(50, 500))
+                    }
+                }
+
+                val rebuild = if (this@IndexAdaptivenessBenchmark.rebuildAfter > 0) {
+                    launch(Dispatchers.IO) {
+                        delay(this@IndexAdaptivenessBenchmark.rebuildAfter.toLong())
+                        this@IndexAdaptivenessBenchmark.indexRebuilt.compareAndSet(false, true)
+                        this@IndexAdaptivenessBenchmark.client.rebuild(RebuildIndex("${TEST_ENTITY_NAME}.${INDEX_NAME}").async())
+                    }
+                } else {
+                    null
                 }
 
                 /* Run benchmark. */
                 this@IndexAdaptivenessBenchmark.benchmark()
                 running = false
 
-                /* Cancel inserts. */
-                jobs.forEach { it.join() }
+                /* Wait for jobs to finish inserts. */
+                insert.join()
+                delete.join()
+                rebuild?.join()
             }
         } catch (e: Throwable) {
             println("An error has occurred: ${e.message}")
@@ -197,31 +219,25 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
     }
 
     /**
-     * Executes a random insert OR delete operation.
-     *
-     * @param mutex The [Mutex] used to synchronise access to shared iterator.
-     * @return True if action was executed, false if it was skipped.
+     * Executes a INSERT operation.
      */
-    private suspend fun insertOrDelete(mutex: Mutex) = try {
-        val doInsert = this.random.nextBoolean()
-        if (doInsert) {
-            val insertCount = this.random.nextInt(100, 7500)
-            val vectors = mutex.withLock {
-                (0 until insertCount).map {
-                    val vec = this.data!!.next()
-                    if (this.jitter > 0) {
-                        for (i in vec.second.indices) {
-                            val noise = this.stat.mean[i].absoluteValue * this.jitter
-                            if (this.random.nextBoolean()) { /* Introduce noise. */
-                                vec.second[i] += this.random.nextDouble(0.0, noise).toFloat()
-                            } else {
-                                vec.second[i] -= this.random.nextDouble(0.0, noise).toFloat()
-                            }
+    private fun doInsert() {
+        try {
+            val insertCount = this.random.nextInt((MIN_OP * this.inserts).toInt(), (MAX_OP * this.inserts).toInt())
+            val vectors = (0 until insertCount).map {
+                val vec = this.data!!.next()
+                if (this.jitter > 0) {
+                    for (i in vec.second.indices) {
+                        val noise = this.stat.mean[i].absoluteValue * this.jitter
+                        if (this.random.nextBoolean()) { /* Introduce noise. */
+                            vec.second[i] += this.random.nextDouble(0.0, noise).toFloat()
+                        } else {
+                            vec.second[i] -= this.random.nextDouble(0.0, noise).toFloat()
                         }
                     }
-                    vec
-                }.toList()
-            }
+                }
+                vec
+            }.toList()
             val insert = BatchInsert(TEST_ENTITY_NAME).columns("id", "feature")
             for ((id, feature) in vectors) {
                 insert.append(id, feature)
@@ -236,16 +252,26 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
             }
             this.client.insert(insert)
             this.insertsExecuted.addAndGet(insertCount)
-        } else {
-            val deleteCount = this.random.nextInt(10, 500)
+        } catch (e: Throwable) {
+            System.err.println("An error occurred during insert/delete: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    /**
+     * Executes a DELETE operation.
+     */
+    private fun doDelete()  {
+        try {
+            val deleteCount = this.random.nextInt((MIN_OP * this.deletes).toInt(), (MAX_OP * this.deletes).toInt())
             val deletes = (0 until deleteCount).map { this.random.nextInt(1, this.maxId.get()) }
             val delete = Delete(TEST_ENTITY_NAME).where(Expression("id", "IN", deletes))
             this.client.delete(delete)
             this.deletesExecuted.addAndGet(deleteCount)
+        } catch (e: Throwable) {
+            System.err.println("An error occurred during insert/delete: ${e.message}")
+            e.printStackTrace()
         }
-    } catch (e: Throwable) {
-        System.err.println("An error occurred during insert/delete: ${e.message}")
-        e.printStackTrace()
     }
 
     /**
@@ -255,11 +281,6 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
     private suspend fun benchmark() {
         val progress = ProgressBarBuilder().setStyle(ProgressBarStyle.ASCII).setInitialMax(this.duration.toLong()).setTaskName("Index Adaptiveness Benchmark (Prepare):").build()
         val timer = TimeSource.Monotonic.markNow().plus(this.duration.seconds)
-        val rebuild = if (this.rebuildAfter > 0 && this.rebuildAfter < this.duration) {
-            this.rebuildAfter
-        } else {
-            Int.MAX_VALUE
-        }
         var queries = YandexDeep1BIterator(this.workingDirectory.resolve("datasets/yandex-deep1b/query.public.10K.fbin"))
         try {
             do {
@@ -293,13 +314,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                         (this.measurements[K_KEY] as MutableList<Int>).add(results.first.size)
                         (this.measurements[PLAN_KEY] as MutableList<Pair<String, Float>>).add(plan.last())
 
-
-                        /* Rebuild index when half of the time has passed. */
-                        if (timestamp > rebuild && this.indexRebuilt.compareAndSet(false, true)) {
-                            this.client.rebuild(RebuildIndex("${TEST_ENTITY_NAME}.${INDEX_NAME}").async())
-                        }
-
-                        delay(this.random.nextLong(50, 1000))
+                        delay(this.random.nextLong(100, 1000))
                     } catch (e: Throwable) {
                         System.err.println("An error occurred during select ${e.message} $")
                         e.printStackTrace()
