@@ -193,6 +193,11 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
 
                 /* Run benchmark. */
                 this@IndexAdaptivenessBenchmark.benchmark()
+                try {
+                    this@IndexAdaptivenessBenchmark.export(out)
+                } catch (e: Throwable) {
+                    this@IndexAdaptivenessBenchmark.export(out.parent.resolve("${out.fileName}~${System.currentTimeMillis()}"))
+                }
 
                 /* Wait for jobs to finish inserts. */
                 insert.cancelAndJoin()
@@ -207,8 +212,6 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
 
             this.progress?.close()
             this.progress = null
-
-            this.export(out)
         }
     }
 
