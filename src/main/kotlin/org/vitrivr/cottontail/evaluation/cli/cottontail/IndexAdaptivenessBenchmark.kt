@@ -255,10 +255,9 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                         }
                     }
                 }
-                var inserted: Long
                 while (true) {
                     try {
-                        inserted = this.client.insert(insert).next().asLong("inserted")!!
+                        this.client.insert(insert).next()
                         break
                     } catch (e: StatusRuntimeException) {
                         if (e.status.code == Status.Code.RESOURCE_EXHAUSTED) {
@@ -268,7 +267,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                         }
                     }
                 }
-                this.insertsExecuted.addAndGet(inserted)
+                this.insertsExecuted.addAndGet(insertCount.toLong())
             }
         } catch (e: Throwable) {
             System.err.println("An error occurred during insert: ${e.message}")
