@@ -146,14 +146,18 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         this.measurements[K_KEY] = mutableListOf<Int>()
         this.measurements[PLAN_KEY] = mutableListOf<Pair<String,Float>>()
 
-        /* Reset counters and statistics. */
-        this.stat.clear()
+        /* Reset maximum ID and list of deleted items. */
         this.maxId.set(0)
+        this.deleted.clear()
+
+        /* Reset counters. */
         this.insertsExecuted.set(0)
         this.deletesExecuted.set(0)
         this.tombstonesCounter.set(0)
         this.indexRebuilt.set(false)
-        this.deleted.clear()
+
+        /* Reset statistics. */
+        this.stat.clear()
 
         try {
             /* Open dataset. */
@@ -163,16 +167,15 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
             this.prepare()
 
             /* Run the benchmark. */
-            var running = true
             runBlocking {
                 val insert = launch(Dispatchers.IO) {
-                    while (running) {
+                    while (this.isActive) {
                         this@IndexAdaptivenessBenchmark.doInsert()
                         delay(this@IndexAdaptivenessBenchmark.random.nextLong(50, 500))
                     }
                 }
                 val delete = launch(Dispatchers.IO) {
-                    while (running) {
+                    while (this.isActive) {
                         this@IndexAdaptivenessBenchmark.doDelete()
                         delay(this@IndexAdaptivenessBenchmark.random.nextLong(50, 500))
                     }
@@ -190,12 +193,11 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
 
                 /* Run benchmark. */
                 this@IndexAdaptivenessBenchmark.benchmark()
-                running = false
 
                 /* Wait for jobs to finish inserts. */
-                insert.join()
-                delete.join()
-                rebuild?.join()
+                insert.cancelAndJoin()
+                delete.cancelAndJoin()
+                rebuild?.cancelAndJoin()
             }
         } catch (e: Throwable) {
             println("An error has occurred: ${e.message}")
