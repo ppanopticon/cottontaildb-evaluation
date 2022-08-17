@@ -234,18 +234,19 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
             val insertCount = this.random.nextInt((MIN_OP * this.inserts).toInt(), (MAX_OP * this.inserts).toInt())
             if (insertCount > 0) {
                 val vectors = (0 until insertCount).map {
-                    val vec = this.data!!.next()
+                    val (id, vector) = this.data!!.next()
                     if (this.jitter > 0) {
-                        for (i in vec.second.indices) {
+                        for (i in vector.indices) {
                             val noise = this.stat.mean[i].absoluteValue * this.jitter
                             if (this.random.nextBoolean()) { /* Introduce noise. */
-                                vec.second[i] += this.random.nextDouble(0.0, noise).toFloat()
+                                vector[i] += this.random.nextDouble(0.0, noise).toFloat()
                             } else {
-                                vec.second[i] -= this.random.nextDouble(0.0, noise).toFloat()
+                                vector[i] -= this.random.nextDouble(0.0, noise).toFloat()
                             }
                         }
                     }
-                    vec
+                    this.maxId.updateAndGet { max(it, id) }
+                    id to vector
                 }.toList()
 
                 val insert = BatchInsert(TEST_ENTITY_NAME).columns("id", "feature")
