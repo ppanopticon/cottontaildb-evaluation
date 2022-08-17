@@ -10,8 +10,6 @@ import com.google.gson.GsonBuilder
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlinx.coroutines.*
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import me.tongfei.progressbar.ProgressBar
 import me.tongfei.progressbar.ProgressBarBuilder
 import me.tongfei.progressbar.ProgressBarStyle
@@ -35,6 +33,7 @@ import java.nio.file.StandardOpenOption
 import java.util.SplittableRandom
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.absoluteValue
 import kotlin.system.measureTimeMillis
 import kotlin.time.Duration.Companion.seconds
@@ -109,16 +108,19 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
     private val maxId = AtomicInteger()
 
     /** The maximum ID seen so far. */
-    private val insertsExecuted = AtomicInteger()
+    private val insertsExecuted = AtomicLong()
 
     /** The maximum ID seen so far. */
-    private val deletesExecuted = AtomicInteger()
+    private val deletesExecuted = AtomicLong()
 
     /** The number of tombstone entries expected. */
     private val tombstonesCounter = AtomicInteger()
 
     /** The number of tombstone entries expected. */
     private val indexRebuilt = AtomicBoolean(false)
+
+    /** List of deleted IDs. */
+    private val deleted = HashSet<Int>()
 
     /**
      * Executes the benchmark.
@@ -151,6 +153,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         this.deletesExecuted.set(0)
         this.tombstonesCounter.set(0)
         this.indexRebuilt.set(false)
+        this.deleted.clear()
 
         try {
             /* Open dataset. */
@@ -224,45 +227,49 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
     private fun doInsert() {
         try {
             val insertCount = this.random.nextInt((MIN_OP * this.inserts).toInt(), (MAX_OP * this.inserts).toInt())
-            val vectors = (0 until insertCount).map {
-                val vec = this.data!!.next()
-                if (this.jitter > 0) {
-                    for (i in vec.second.indices) {
-                        val noise = this.stat.mean[i].absoluteValue * this.jitter
-                        if (this.random.nextBoolean()) { /* Introduce noise. */
-                            vec.second[i] += this.random.nextDouble(0.0, noise).toFloat()
-                        } else {
-                            vec.second[i] -= this.random.nextDouble(0.0, noise).toFloat()
+            if (insertCount > 0) {
+                val vectors = (0 until insertCount).map {
+                    val vec = this.data!!.next()
+                    if (this.jitter > 0) {
+                        for (i in vec.second.indices) {
+                            val noise = this.stat.mean[i].absoluteValue * this.jitter
+                            if (this.random.nextBoolean()) { /* Introduce noise. */
+                                vec.second[i] += this.random.nextDouble(0.0, noise).toFloat()
+                            } else {
+                                vec.second[i] -= this.random.nextDouble(0.0, noise).toFloat()
+                            }
+                        }
+                    }
+                    vec
+                }.toList()
+
+                val insert = BatchInsert(TEST_ENTITY_NAME).columns("id", "feature")
+                for ((id, feature) in vectors) {
+                    insert.append(id, feature)
+
+                    /* Check if entry lies out of bounds. */
+                    for (i in feature.indices) {
+                        if (feature[i] > this.stat.max[i] || feature[i] < this.stat.min[i]) {
+                            this.tombstonesCounter.incrementAndGet()
+                            break
                         }
                     }
                 }
-                vec
-            }.toList()
-            val insert = BatchInsert(TEST_ENTITY_NAME).columns("id", "feature")
-            for ((id, feature) in vectors) {
-                insert.append(id, feature)
-
-                /* Check if entry lies out of bounds. */
-                for (i in feature.indices) {
-                    if (feature[i] > this.stat.max[i] || feature[i] < this.stat.min[i]) {
-                        this.tombstonesCounter.incrementAndGet()
+                var inserted: Long
+                while (true) {
+                    try {
+                        inserted = this.client.insert(insert).next().asLong("inserted")!!
                         break
+                    } catch (e: StatusRuntimeException) {
+                        if (e.status.code == Status.Code.RESOURCE_EXHAUSTED) {
+                            continue /* Retry. */
+                        } else {
+                            throw e
+                        }
                     }
                 }
+                this.insertsExecuted.addAndGet(inserted)
             }
-            while (true) {
-                try {
-                    this.client.insert(insert)
-                    break
-                } catch (e: StatusRuntimeException) {
-                    if (e.status.code == Status.Code.RESOURCE_EXHAUSTED) {
-                        continue /* Retry. */
-                    } else {
-                        throw e
-                    }
-                }
-            }
-            this.insertsExecuted.addAndGet(insertCount)
         } catch (e: Throwable) {
             System.err.println("An error occurred during insert: ${e.message}")
             e.printStackTrace()
@@ -275,22 +282,32 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
     private fun doDelete()  {
         try {
             val deleteCount = this.random.nextInt((MIN_OP * this.deletes).toInt(), (MAX_OP * this.deletes).toInt())
-            val deletes = (0 until deleteCount).map { this.random.nextInt(1, this.maxId.get()) }
-            val delete = Delete(TEST_ENTITY_NAME).where(Expression("id", "IN", deletes))
-            while (true) {
-                try {
-                    this.client.delete(delete)
-                    break
-                } catch (e: StatusRuntimeException) {
-                    if (e.status.code == Status.Code.RESOURCE_EXHAUSTED) {
-                        continue /* Retry upon conflict. */
-                    } else {
-                        throw e
+            if (deleteCount > 0) {
+                val deletes = (0 until deleteCount).map {
+                    var deleteId: Int
+                    do {
+                        deleteId = this.random.nextInt(1, this.maxId.get())
+                    } while (this.deleted.contains(deleteId))
+                    this.deleted.add(deleteId)
+                    deleteId
+                }
+                val delete = Delete(TEST_ENTITY_NAME).where(Expression("id", "IN", deletes))
+                var deleted: Long
+                while (true) {
+                    try {
+                        deleted = this.client.delete(delete).next().asLong("deleted")!!
+                        break
+                    } catch (e: StatusRuntimeException) {
+                        if (e.status.code == Status.Code.RESOURCE_EXHAUSTED) {
+                            continue /* Retry upon conflict. */
+                        } else {
+                            throw e
+                        }
                     }
                 }
-            }
 
-            this.deletesExecuted.addAndGet(deleteCount)
+                this.deletesExecuted.addAndGet(deleted)
+            }
         } catch (e: Throwable) {
             System.err.println("An error occurred during delete: ${e.message}")
             e.printStackTrace()
@@ -316,23 +333,13 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
 
                         /* Record measurements. */
                         (this.measurements[TIME_KEY] as MutableList<Long>).add(timestamp)
-                        (this.measurements[INSERTS_KEY] as MutableList<Int>).add(this.insertsExecuted.get())
-                        (this.measurements[DELETES_KEY] as MutableList<Int>).add(this.deletesExecuted.get())
+                        (this.measurements[INSERTS_KEY] as MutableList<Long>).add(this.insertsExecuted.get())
+                        (this.measurements[DELETES_KEY] as MutableList<Long>).add(this.deletesExecuted.get())
                         (this.measurements[OOB_KEY] as MutableList<Int>).add(this.tombstonesCounter.get())
                         (this.measurements[COUNT_KEY] as MutableList<Long>).add(this.count())
                         (this.measurements[RUNTIME_KEY] as MutableList<Double>).add(duration / 1000.0)
-                        (this.measurements[DCG_KEY] as MutableList<Double>).add(
-                            Measures.ndcg(
-                                results.first,
-                                results.second
-                            )
-                        )
-                        (this.measurements[RECALL_KEY] as MutableList<Double>).add(
-                            Measures.recall(
-                                results.first,
-                                results.second
-                            )
-                        )
+                        (this.measurements[DCG_KEY] as MutableList<Double>).add(Measures.ndcg(results.first, results.second))
+                        (this.measurements[RECALL_KEY] as MutableList<Double>).add(Measures.recall(results.first, results.second))
                         (this.measurements[REBUILT_KEY] as MutableList<Boolean>).add(this.indexRebuilt.get())
                         (this.measurements[K_KEY] as MutableList<Int>).add(results.first.size)
                         (this.measurements[PLAN_KEY] as MutableList<Pair<String, Float>>).add(plan.last())
@@ -455,7 +462,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
             /** Create index. */
             when(this.index) {
                 CottontailGrpc.IndexType.VAF -> this.client.create(CreateIndex(TEST_ENTITY_NAME, "feature", CottontailGrpc.IndexType.VAF).param("vaf.marks_per_dimension", "35").name(INDEX_NAME))
-                CottontailGrpc.IndexType.PQ -> this.client.create(CreateIndex(TEST_ENTITY_NAME, "feature", CottontailGrpc.IndexType.PQ).param("pq.centroids", "512").param("pq.subspaces","8").name(INDEX_NAME))
+                CottontailGrpc.IndexType.PQ -> this.client.create(CreateIndex(TEST_ENTITY_NAME, "feature", CottontailGrpc.IndexType.PQ).param("pq.centroids", "1024").param("pq.subspaces","8").name(INDEX_NAME))
                 CottontailGrpc.IndexType.IVFPQ -> this.client.create(CreateIndex(TEST_ENTITY_NAME, "feature", CottontailGrpc.IndexType.IVFPQ).param("ivfpq.centroids", "512").param("ivfpq.subspaces","8").param("ivfpq.coarse_centroids","128").name(INDEX_NAME))
                 else -> throw IllegalArgumentException("Unsupported index!")
             }
