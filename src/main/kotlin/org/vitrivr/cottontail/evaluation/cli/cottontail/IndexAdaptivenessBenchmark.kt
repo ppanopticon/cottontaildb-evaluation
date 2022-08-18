@@ -193,11 +193,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
 
                 /* Run benchmark. */
                 this@IndexAdaptivenessBenchmark.benchmark()
-                try {
-                    this@IndexAdaptivenessBenchmark.export(out)
-                } catch (e: Throwable) {
-                    this@IndexAdaptivenessBenchmark.export(out.parent.resolve("${out.fileName}~${System.currentTimeMillis()}"))
-                }
+                this@IndexAdaptivenessBenchmark.export(out)
 
                 /* Wait for jobs to finish inserts. */
                 insert.cancelAndJoin()
@@ -206,7 +202,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
             }
         } catch (e: Throwable) {
             println("An error has occurred: ${e.message}")
-        } finally{
+        } finally {
             this.data?.close()
             this.data = null
 
@@ -220,9 +216,16 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
      */
     override fun export(out: Path) {
         /* Export JSON data. */
-        Files.newBufferedWriter(out.resolve("measurements.json"), StandardOpenOption.CREATE_NEW).use {
-            val gson = GsonBuilder().setPrettyPrinting().create()
-            gson.toJson(this.measurements, Map::class.java, gson.newJsonWriter(it))
+        try {
+            Files.newBufferedWriter(out.resolve("measurements.json"), StandardOpenOption.CREATE_NEW).use {
+                val gson = GsonBuilder().setPrettyPrinting().create()
+                gson.toJson(this.measurements, Map::class.java, gson.newJsonWriter(it))
+            }
+        } catch (e: FileAlreadyExistsException) {
+            Files.newBufferedWriter(out.resolve("measurements.json~${System.currentTimeMillis()}"), StandardOpenOption.CREATE_NEW).use {
+                val gson = GsonBuilder().setPrettyPrinting().create()
+                gson.toJson(this.measurements, Map::class.java, gson.newJsonWriter(it))
+            }
         }
     }
 
@@ -230,6 +233,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
      * Executes a INSERT operation.
      */
     private fun doInsert() {
+        if (this.inserts <= 0.0f) return
         try {
             val insertCount = this.random.nextInt((MIN_OP * this.inserts).toInt(), (MAX_OP * this.inserts).toInt())
             if (insertCount > 0) {
@@ -274,6 +278,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
      * Executes a DELETE operation.
      */
     private fun doDelete()  {
+        if (this.deletes <= 0.0f) return
         try {
             val deleteCount = this.random.nextInt((MIN_OP * this.deletes).toInt(), (MAX_OP * this.deletes).toInt())
             if (deleteCount > 0) {
@@ -303,6 +308,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         val progress = ProgressBarBuilder().setStyle(ProgressBarStyle.ASCII).setInitialMax(this.duration.toLong()).setTaskName("Index Adaptiveness Benchmark (Prepare):").build()
         val timer = TimeSource.Monotonic.markNow().plus(this.duration.seconds)
         var queries = YandexDeep1BIterator(this.workingDirectory.resolve("datasets/yandex-deep1b/query.public.10K.fbin"))
+        val oneQuery = queries.next()
         try {
             do {
                 val timestamp = this.duration - timer.elapsedNow().absoluteValue.inWholeSeconds
@@ -310,7 +316,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                 if (queries.hasNext()) {
                     val (id, query) = queries.next()
                     try {
-                        val (duration, plan, results) = this.executeNNSQuery(query, this.index.toString())
+                        val (duration, plan, results) = this.executeNNSQuery(oneQuery.second, this.index.toString())
 
                         /* Record measurements. */
                         (this.measurements[TIME_KEY] as MutableList<Long>).add(timestamp)
@@ -362,6 +368,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                 .select("id")
                 .distance("feature", queryVector, Distances.L2, "distance")
                 .order("distance", Direction.ASC)
+                .disallowParallelism()
                 .limit(1000)
                 .txId(txId)
 
