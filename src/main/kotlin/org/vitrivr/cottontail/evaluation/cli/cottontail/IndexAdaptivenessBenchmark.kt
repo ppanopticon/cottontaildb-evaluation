@@ -63,6 +63,8 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         private const val REBUILT_KEY = "rebuilt"
         private const val COUNT_KEY = "count"
         private const val RUNTIME_KEY = "runtime"
+        private const val RUNTIME_BRUTE_FORCE_KEY = "runtime_bf"
+        private const val SPEEDUP_KEY = "speedup_bf"
         private const val DCG_KEY = "dcg"
         private const val RECALL_KEY = "recall"
         private const val PLAN_KEY = "plan"
@@ -140,6 +142,8 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         this.measurements[DELETES_KEY] = mutableListOf<Int>()
         this.measurements[OOB_KEY] = mutableListOf<Int>()
         this.measurements[RUNTIME_KEY] = mutableListOf<Double>()
+        this.measurements[RUNTIME_BRUTE_FORCE_KEY] = mutableListOf<Double>()
+        this.measurements[SPEEDUP_KEY] = mutableListOf<Double>()
         this.measurements[DCG_KEY] = mutableListOf<Double>()
         this.measurements[RECALL_KEY] = mutableListOf<Double>()
         this.measurements[REBUILT_KEY] = mutableListOf<Boolean>()
@@ -333,7 +337,9 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                         (this.measurements[DELETES_KEY] as MutableList<Long>).add(this.deletesExecuted.get())
                         (this.measurements[OOB_KEY] as MutableList<Int>).add(this.tombstonesCounter.get())
                         (this.measurements[COUNT_KEY] as MutableList<Long>).add(this.count())
-                        (this.measurements[RUNTIME_KEY] as MutableList<Double>).add(duration / 1000.0)
+                        (this.measurements[RUNTIME_KEY] as MutableList<Double>).add(duration.first / 1000.0)
+                        (this.measurements[RUNTIME_BRUTE_FORCE_KEY] as MutableList<Double>).add(duration.second / 1000.0)
+                        (this.measurements[SPEEDUP_KEY] as MutableList<Double>).add((duration.second - duration.first) / 1000.0)
                         (this.measurements[DCG_KEY] as MutableList<Double>).add(Measures.ndcg(results.first, results.second))
                         (this.measurements[RECALL_KEY] as MutableList<Double>).add(Measures.recall(results.first, results.second))
                         (this.measurements[REBUILT_KEY] as MutableList<Boolean>).add(this.indexRebuilt.get())
@@ -370,7 +376,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
      * @param queryVector The query vector.
      * @param indexType The index to use.
      */
-    private fun executeNNSQuery(queryVector: FloatArray, indexType: String): Triple<Long,List<Pair<String,Float>>,Pair<List<Int>,List<Int>>> {
+    private fun executeNNSQuery(queryVector: FloatArray, indexType: String): Triple<Pair<Long,Long>,List<Pair<String,Float>>,Pair<List<Int>,List<Int>>> {
         val txId = this.client.begin(true)
         try {
             val query = Query(TEST_ENTITY_NAME)
@@ -391,11 +397,13 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
             /* Retrieve results. */
             val results = ArrayList<Int>(1000)
             val gt = ArrayList<Int>(1000)
-            val time = measureTimeMillis {
+            val time_index = measureTimeMillis {
                 this.client.query(query.useIndexType(indexType)).forEach { t -> results.add(t.asInt("id")!!) }
             }
-            this.client.query(query.disallowIndex()).forEach { t -> gt.add(t.asInt("id")!!) }
-            return Triple(time,  plan,results to gt)
+            val time_bf = measureTimeMillis {
+                this.client.query(query.disallowIndex()).forEach { t -> gt.add(t.asInt("id")!!) }
+            }
+            return Triple(time_index to time_bf,  plan,results to gt)
         } finally {
             this.client.rollback(txId)
         }
