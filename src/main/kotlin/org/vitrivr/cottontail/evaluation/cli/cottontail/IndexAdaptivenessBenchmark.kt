@@ -183,7 +183,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
 
                 val rebuild = if (this@IndexAdaptivenessBenchmark.rebuildAfter > 0) {
                     launch(Dispatchers.IO) {
-                        delay(this@IndexAdaptivenessBenchmark.rebuildAfter.toLong())
+                        delay(this@IndexAdaptivenessBenchmark.rebuildAfter * 1000L)
                         this@IndexAdaptivenessBenchmark.indexRebuilt.compareAndSet(false, true)
                         this@IndexAdaptivenessBenchmark.client.rebuild(RebuildIndex("${TEST_ENTITY_NAME}.${INDEX_NAME}").async())
                     }
