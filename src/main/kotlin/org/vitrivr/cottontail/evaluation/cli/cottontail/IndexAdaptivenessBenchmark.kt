@@ -261,18 +261,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                         }
                     }
                 }
-                while (true) {
-                    try {
-                        this.client.insert(insert).next()
-                        break
-                    } catch (e: StatusRuntimeException) {
-                        if (e.status.code == Status.Code.RESOURCE_EXHAUSTED) {
-                            continue /* Retry. */
-                        } else {
-                            throw e
-                        }
-                    }
-                }
+                this.client.insert(insert).next()
                 this.insertsExecuted.addAndGet(insertCount.toLong())
             }
         } catch (e: Throwable) {
@@ -297,20 +286,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                     deleteId
                 }
                 val delete = Delete(TEST_ENTITY_NAME).where(Expression("id", "IN", deletes))
-                var deleted: Long
-                while (true) {
-                    try {
-                        deleted = this.client.delete(delete).next().asLong("deleted")!!
-                        break
-                    } catch (e: StatusRuntimeException) {
-                        if (e.status.code == Status.Code.RESOURCE_EXHAUSTED) {
-                            continue /* Retry upon conflict. */
-                        } else {
-                            throw e
-                        }
-                    }
-                }
-
+                val deleted: Long = this.client.delete(delete).next().asLong("deleted")!!
                 this.deletesExecuted.addAndGet(deleted)
             }
         } catch (e: Throwable) {
