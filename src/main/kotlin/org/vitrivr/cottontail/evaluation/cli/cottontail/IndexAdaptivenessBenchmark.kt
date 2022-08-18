@@ -314,6 +314,16 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                 progress.stepTo(timestamp)
                 if (queries.hasNext()) {
                     val (id, query) = queries.next()
+                    if (this.jitter > 0 && this.random.nextBoolean()) {
+                        for (i in query.indices) {
+                            val noise = this.stat.mean[i].absoluteValue * this.jitter
+                            if (this.random.nextBoolean()) { /* Introduce noise. */
+                                query[i] += this.random.nextDouble(0.0, noise).toFloat()
+                            } else {
+                                query[i] -= this.random.nextDouble(0.0, noise).toFloat()
+                            }
+                        }
+                    }
                     try {
                         val (duration, plan, results) = this.executeNNSQuery(query, this.index.toString())
 
