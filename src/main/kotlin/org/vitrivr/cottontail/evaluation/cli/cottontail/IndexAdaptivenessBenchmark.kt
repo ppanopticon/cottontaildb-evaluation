@@ -308,7 +308,6 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
         val progress = ProgressBarBuilder().setStyle(ProgressBarStyle.ASCII).setInitialMax(this.duration.toLong()).setTaskName("Index Adaptiveness Benchmark (Prepare):").build()
         val timer = TimeSource.Monotonic.markNow().plus(this.duration.seconds)
         var queries = YandexDeep1BIterator(this.workingDirectory.resolve("datasets/yandex-deep1b/query.public.10K.fbin"))
-        val oneQuery = queries.next()
         try {
             do {
                 val timestamp = this.duration - timer.elapsedNow().absoluteValue.inWholeSeconds
@@ -316,7 +315,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
                 if (queries.hasNext()) {
                     val (id, query) = queries.next()
                     try {
-                        val (duration, plan, results) = this.executeNNSQuery(oneQuery.second, this.index.toString())
+                        val (duration, plan, results) = this.executeNNSQuery(query, this.index.toString())
 
                         /* Record measurements. */
                         (this.measurements[TIME_KEY] as MutableList<Long>).add(timestamp)
@@ -450,7 +449,7 @@ class IndexAdaptivenessBenchmark(private val client: SimpleClient, workingDirect
             /** Create index. */
             when(this.index) {
                 CottontailGrpc.IndexType.VAF -> this.client.create(CreateIndex(TEST_ENTITY_NAME, "feature", CottontailGrpc.IndexType.VAF).param("vaf.marks_per_dimension", "35").name(INDEX_NAME))
-                CottontailGrpc.IndexType.PQ -> this.client.create(CreateIndex(TEST_ENTITY_NAME, "feature", CottontailGrpc.IndexType.PQ).param("pq.centroids", "1024").param("pq.subspaces","8").name(INDEX_NAME))
+                CottontailGrpc.IndexType.PQ -> this.client.create(CreateIndex(TEST_ENTITY_NAME, "feature", CottontailGrpc.IndexType.PQ).param("pq.centroids", "2048").param("pq.subspaces","8").name(INDEX_NAME))
                 CottontailGrpc.IndexType.IVFPQ -> this.client.create(CreateIndex(TEST_ENTITY_NAME, "feature", CottontailGrpc.IndexType.IVFPQ).param("ivfpq.centroids", "512").param("ivfpq.subspaces","8").param("ivfpq.coarse_centroids","128").name(INDEX_NAME))
                 else -> throw IllegalArgumentException("Unsupported index!")
             }
