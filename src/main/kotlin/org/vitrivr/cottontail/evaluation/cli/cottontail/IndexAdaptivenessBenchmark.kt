@@ -23,6 +23,7 @@ import org.vitrivr.cottontail.client.language.ddl.*
 import org.vitrivr.cottontail.client.language.dml.BatchInsert
 import org.vitrivr.cottontail.client.language.dml.Delete
 import org.vitrivr.cottontail.client.language.dql.Query
+import org.vitrivr.cottontail.evaluation.cli.AbstractBenchmarkCommand
 import org.vitrivr.cottontail.evaluation.datasets.YandexDeep1BIterator
 import org.vitrivr.cottontail.evaluation.utilities.Measures
 import org.vitrivr.cottontail.grpc.CottontailGrpc

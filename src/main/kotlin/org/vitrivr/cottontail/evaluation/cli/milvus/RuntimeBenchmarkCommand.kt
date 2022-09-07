@@ -23,7 +23,7 @@ import io.milvus.response.QueryResultsWrapper
 import io.milvus.response.SearchResultsWrapper
 import me.tongfei.progressbar.ProgressBarBuilder
 import me.tongfei.progressbar.ProgressBarStyle
-import org.vitrivr.cottontail.evaluation.cli.cottontail.AbstractBenchmarkCommand
+import org.vitrivr.cottontail.evaluation.cli.AbstractBenchmarkCommand
 import org.vitrivr.cottontail.evaluation.datasets.YandexDeep1BIterator
 import org.vitrivr.cottontail.evaluation.utilities.Measures
 import java.nio.file.Files

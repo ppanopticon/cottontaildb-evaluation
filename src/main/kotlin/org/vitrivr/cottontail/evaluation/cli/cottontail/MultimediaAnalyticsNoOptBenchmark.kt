@@ -13,6 +13,7 @@ import org.vitrivr.cottontail.client.language.basics.Direction
 import org.vitrivr.cottontail.client.language.basics.Distances
 import org.vitrivr.cottontail.client.language.basics.predicate.Expression
 import org.vitrivr.cottontail.client.language.dql.Query
+import org.vitrivr.cottontail.evaluation.cli.AbstractBenchmarkCommand
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption

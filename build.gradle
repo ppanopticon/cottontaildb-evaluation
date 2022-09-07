@@ -27,7 +27,11 @@ dependencies {
     implementation group: 'com.google.protobuf', name: 'protobuf-java', version: '3.21.2'
 
     /* Milvus driver. */
-    implementation group:'io.milvus', name: 'milvus-sdk-java', version: '2.0.4'
+    implementation group: 'io.milvus', name: 'milvus-sdk-java', version: '2.0.4'
+
+    /* Cassandra driver. */
+    implementation  group: 'com.datastax.oss', name: 'java-driver-core', version: '4.14.1'
+    implementation  group: 'com.datastax.oss', name: 'java-driver-query-builder', version:'4.14.1'
 
     /*  CLI & Terminal */
     implementation group: 'org.jline', name: 'jline', version: '3.21.0'

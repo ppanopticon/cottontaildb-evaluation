@@ -1,4 +1,4 @@
-package org.vitrivr.cottontail.evaluation.cli.cottontail
+package org.vitrivr.cottontail.evaluation.cli
 
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.parameters.options.convert
