@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.evaluation.cli
 
+import com.datastax.oss.driver.api.core.CqlSession
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.NoOpCliktCommand
 import com.github.ajalt.clikt.core.subcommands
@@ -15,6 +16,7 @@ import org.jline.terminal.TerminalBuilder
 import org.vitrivr.cottontail.client.SimpleClient
 import org.vitrivr.cottontail.evaluation.cli.cottontail.*
 import java.io.IOException
+import java.net.InetSocketAddress
 import java.nio.file.Path
 import java.util.regex.Pattern
 
@@ -43,6 +45,14 @@ class Cli(host: String, private val workingDirectory: Path) {
 
     /** The simple client used to communicate with Milvus. */
     private val milvus = MilvusServiceClient(ConnectParam.newBuilder().withHost(host).withPort(19530).build())
+
+    /** The simple client used to communicate with Milvus. */
+    private val cassandra = try {
+        CqlSession.builder().addContactPoint(InetSocketAddress(host, 9042)).withLocalDatacenter("datacenter1").build()
+    } catch (e: Throwable) {
+        System.err.println("Apache Cassandra not available under ${host}:9042")
+        null
+    }
 
     /** Flag indicating whether [Cli] has been stopped. */
     @Volatile
@@ -161,17 +171,10 @@ class Cli(host: String, private val workingDirectory: Path) {
                 object : NoOpCliktCommand(
                     name = "cottontail",
                     help = "Groups commands that act on Cottontail DB.",
-                    epilog = "Entity related commands usually have the form: entity <command> <name>, `entity about schema_name.entity_name. Check help for command specific parameters.",
                     invokeWithoutSubcommand = true,
                     printHelpOnEmptyArgs = true
                 ) {
-                    override fun aliases(): Map<String, List<String>> {
-                        /* List of entity aliases: entity <alias> */
-                        return mapOf(
-                            "ls" to listOf("list"),
-                            "list-indexes" to listOf("list-indices")
-                        )
-                    }
+                    override fun aliases(): Map<String, List<String>> = emptyMap()
                 }.subcommands(
                     LoadDataCommand(this@Cli.cottontail, this@Cli.workingDirectory),
                     IndexAdaptivenessBenchmark(this@Cli.cottontail, this@Cli.workingDirectory),
@@ -187,18 +190,25 @@ class Cli(host: String, private val workingDirectory: Path) {
                 object : NoOpCliktCommand(
                     name = "milvus",
                     help = "Groups commands that act on Milvus.",
-                    epilog = "Schema related commands usually have the form: schema <command> <name>, e.g., `schema list schema_name` Check help for command specific parameters.",
                     invokeWithoutSubcommand = true,
                     printHelpOnEmptyArgs = true
                 ) {
-                    override fun aliases(): Map<String, List<String>> {
-                        return mapOf(
-                            "ls" to listOf("list")
-                        )
-                    }
+                    override fun aliases(): Map<String, List<String>> = emptyMap()
                 }.subcommands(
                     org.vitrivr.cottontail.evaluation.cli.milvus.LoadDataCommand(this@Cli.milvus, this@Cli.workingDirectory),
                     org.vitrivr.cottontail.evaluation.cli.milvus.RuntimeBenchmarkCommand(this@Cli.milvus, this@Cli.workingDirectory)
+                ),
+
+                /* Schema related commands. */
+                object : NoOpCliktCommand(
+                    name = "cassandra",
+                    help = "Groups commands that act on Apache Cassandra.",
+                    invokeWithoutSubcommand = true,
+                    printHelpOnEmptyArgs = true
+                ) {
+                    override fun aliases(): Map<String, List<String>> = emptyMap()
+                }.subcommands(
+                    org.vitrivr.cottontail.evaluation.cli.cassandra.RuntimeBenchmarkCommand(this@Cli.cassandra, this@Cli.workingDirectory)
                 ),
 
                 /* General commands. */
